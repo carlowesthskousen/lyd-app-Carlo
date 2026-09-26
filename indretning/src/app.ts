@@ -27,9 +27,24 @@ import { emptyProject } from './state/defaults';
 import { exportJson, importJson, lastProjectId, loadProject, saveProject } from './persistence/projects';
 import { demoProject } from './persistence/demo';
 import { WALL_PRESETS } from './building/buildCatalog';
+import { sweepSphere } from './camera/collision';
 
 export type Mode = 'build' | 'buy';
-type AppEvent = 'selection' | 'tool' | 'doc' | 'mode' | 'settings' | 'history' | 'stats' | 'catalog' | 'saved' | 'help' | 'escape';
+type AppEvent =
+  | 'selection'
+  | 'tool'
+  | 'doc'
+  | 'mode'
+  | 'settings'
+  | 'history'
+  | 'stats'
+  | 'catalog'
+  | 'saved'
+  | 'help'
+  | 'escape'
+  | 'camera'
+  | 'cameraMode'
+  | 'speed';
 
 export interface Stats {
   fps: number;
@@ -90,6 +105,13 @@ export class App implements Editor {
       }
     };
     this.camera.onChange = () => this.scheduleCameraSave();
+    this.camera.collide = (from, delta) => this.collideWalls(from, delta);
+    this.camera.onModeChange = (mode) => {
+      this.toast(mode === 'drone' ? 'Drone-tilstand – højreklik og træk for at kigge rundt' : 'Byg-tilstand');
+      this.emit('cameraMode');
+      this.emit('settings');
+    };
+    this.camera.onSpeedChange = () => this.emit('speed');
     this.building.onRebuilt = () => {
       this.viewport.lighting.fitTo(this.sceneBounds());
       this.viewport.markShadowsDirty();
@@ -112,7 +134,14 @@ export class App implements Editor {
     this.store.subscribe((reason) => this.onStoreChange(reason));
     this.bindPointer();
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
-    window.addEventListener('beforeunload', () => this.saveNow());
+    window.addEventListener('beforeunload', (e) => {
+      this.saveNow();
+      // Ctrl+W lukker fanen i browseren – spørg, hvis man er ved at dykke med Ctrl.
+      if (this.camera.mode === 'drone' && this.camera.ctrlHeld) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
     document.addEventListener('visibilitychange', () => document.hidden && this.saveNow());
   }
 
@@ -574,7 +603,8 @@ export class App implements Editor {
       KeyX: () => this.setTool('delete'),
       KeyK: () => this.setMode(this.mode === 'build' ? 'buy' : 'build'),
       KeyG: () => this.toggleGrid(),
-      KeyC: () => this.cycleWallMode(),
+      KeyL: () => this.cycleWallMode(),
+      Tab: () => this.toggleCameraMode(),
       KeyF: () => this.focusSelection(),
       KeyT: () => this.topDown(),
       KeyH: () => this.emit('help'),
@@ -599,13 +629,31 @@ export class App implements Editor {
   }
 
   adjustSpeed(f: number) {
-    this.camera.speed = THREE.MathUtils.clamp(this.camera.speed * f, 0.2, 5);
-    this.toast(`Kamerahastighed ${Math.round(this.camera.speed * 100)} %`);
+    const c = this.camera;
+    if (c.mode === 'drone') {
+      c.updateSettings({ droneSpeed: THREE.MathUtils.clamp(c.settings.droneSpeed * f, 0.3, 60) });
+      this.emit('speed');
+    } else {
+      c.updateSettings({ buildSpeed: THREE.MathUtils.clamp(c.settings.buildSpeed * f, 0.2, 5) });
+      this.toast(`Kamerahastighed ${Math.round(c.settings.buildSpeed * 100)} %`);
+    }
     this.emit('settings');
+  }
+
+  // ---------------------------------------------------------------- drone-kollision
+
+  /** Kameraet (en kugle på 20 cm) kan ikke flyve gennem vægge – kun gennem døre og vinduer. */
+  collideWalls(from: THREE.Vector3, delta: THREE.Vector3): THREE.Vector3 {
+    return sweepSphere(from, delta, this.building.collisionMeshes(), 0.2);
+  }
+
+  toggleCameraMode() {
+    this.camera.toggleMode();
   }
 
   // ---------------------------------------------------------------- loop
 
+  private hudTimer = 0;
   private frames = 0;
   private fpsTime = 0;
   private slowSeconds = 0;
@@ -623,6 +671,11 @@ export class App implements Editor {
     this.furniture.updateLights(this.store.doc, this.camera.position, 1 - this.viewport.lighting.daylight);
     this.tool.update?.(dt);
     this.viewport.render();
+    this.hudTimer += dt;
+    if (this.hudTimer > 0.1) {
+      this.hudTimer = 0;
+      this.emit('camera');
+    }
     this.measure(dt);
   };
 

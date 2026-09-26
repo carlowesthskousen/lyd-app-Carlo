@@ -29,19 +29,39 @@ Første gang åbner spillet et lille starterhus, så du kan gå i gang med det s
 
 Tryk **H** i spillet for at se alle hurtigtaster.
 
-**Kamera**
+**Kamera – to tilstande (Tab skifter blødt mellem dem)**
+
+*Drone* – fri flyvning i alle retninger, som en rigtig drone:
+
+| Input                        | Handling                                                        |
+| ---------------------------- | --------------------------------------------------------------- |
+| W / S                        | Flyv frem/tilbage **dertil du kigger** – kigger du skråt ned, dykker du |
+| A / D                        | Flyv sidelæns                                                   |
+| Space (eller E)              | Stig lodret op                                                  |
+| C (eller Ctrl / Q)           | Dyk lodret ned                                                  |
+| Højreklik holdt nede         | Kig rundt med musen (mouselook)                                 |
+| Scroll                       | Flyvehastighed (vises kort midt på skærmen)                     |
+| Shift / Alt                  | Boost (×3) / præcision (meget langsom)                          |
+
+Dronen accelererer blødt og glider videre, når du slipper tasterne. Den krænger let i sving og retter sig selv op. Den kan ikke komme under gulvet, men kan flyve helt op til 1,5 km. Døre og vinduer kan flyves igennem. Væg-kollision kan slås fra, så man flyver gennem vægge.
+
+> ⚠️ **Ctrl+W lukker fanen i browseren** (browseren tillader ikke spil at blokere det). Dyk derfor hellere med **C**. Hvis du alligevel trykker Ctrl+W i drone-tilstand, spørger browseren først, om du vil forlade siden.
+
+*Byg* – oversigtskamera som i The Sims:
 
 | Input                      | Handling                                     |
 | -------------------------- | -------------------------------------------- |
 | W A S D / piletaster       | Flyv vandret i kameraets retning             |
-| E eller Space / Q          | Op / ned                                     |
-| Shift                      | Hurtigere (hastigheden kan også justeres med `[` `]` og under ⚙) |
-| Højreklik + træk           | Drej (orbit om punktet under musen)          |
+| Space/E · C/Q              | Op · ned                                     |
+| Højreklik + træk           | Orbit om punktet under musen                 |
 | Midterklik + træk          | Panorér (gulvet "følger musen")              |
 | Scroll                     | Zoom mod musens position                     |
-| F / T / Home               | Fokusér på valgt / set oppefra / nulstil     |
 
-Kameraet accelererer og bremser blødt og kan ikke komme under gulvet.
+Begge tilstande: `[` `]` justerer farten, **F** fokuserer på det valgte, **T** viser oppefra og **Home** nulstiller. Alle byggeværktøjer virker i begge tilstande: venstreklik bruger værktøjet, og højreklik styrer kameraet.
+
+**Controller (gamepad):** Venstre stick bevæger, højre stick kigger og RT/LT er op/ned. RB giver boost, LB præcision, og Y/△ skifter mellem Drone og Byg.
+
+**Indstillinger (⚙):** Kameratilstand, musefølsomhed, invertér Y, farten i begge tilstande, glid (fra stram til flydende), krængning og væg-kollision. Indstillingerne gemmes i browseren. HUD'et øverst til venstre viser tilstand, højde over gulv og fart.
 
 **Værktøjer**
 
@@ -54,7 +74,7 @@ Kameraet accelererer og bremser blødt og kan ikke komme under gulvet.
 | P    | Maling & gulve: klik på en vægside eller et gulv. Shift+klik maler hele rummet |
 | X    | Slet: rødt omrids på objektet under musen. Klik sletter, og træk sletter flere |
 | K    | Skift mellem **Byg** og **Indret**                                      |
-| C    | Vægge oppe / cutaway / nede (som i The Sims)                            |
+| L    | Vægge oppe / cutaway / nede (som i The Sims)                            |
 | G    | Vis/skjul gitter                                                        |
 
 **Redigering:** Ctrl+Z / Ctrl+Y (fortryd/gentag alt), Ctrl+D (duplikér), Delete (slet), R / Shift+R (drej 15°), Alt+R eller Alt+scroll (fri rotation), hold Alt (placér uden snap), Ctrl+S (gem nu).
@@ -160,7 +180,7 @@ Gulv- og vægmaterialerne (træ, fliser, beton, tæppe, mursten, puds) genereres
 ```
 src/
   state/        Dokumentmodel (ProjectDoc), Store med transaktioner og fortryd/gentag
-  camera/       FlyCamera: frit kamera med dæmpning, orbit, panorering, zoom mod musen
+  camera/       FlyCamera (Drone + Byg), bevægelsesfysik, væg-kollision, gamepad, indstillinger
   building/     Væg-graf (hjørnesamlinger, deling, rumdetektion), vægge med huller,
                 døre/vinduer, gulve, cutaway
   furniture/    Katalog + manifest, model-loader med autoskalering, procedurale

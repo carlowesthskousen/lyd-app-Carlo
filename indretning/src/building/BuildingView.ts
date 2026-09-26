@@ -159,6 +159,13 @@ export class BuildingView {
     return undefined;
   }
 
+  /** Alle vægflader (med huller til døre/vinduer) – bruges til dronens kollision. */
+  collisionMeshes(): THREE.Object3D[] {
+    const out: THREE.Object3D[] = [];
+    for (const w of this.walls.values()) for (const c of w.group.children) if (c instanceof THREE.Mesh) out.push(c);
+    return out;
+  }
+
   /** Vægmeshes uden døre/vinduer – til omrids af en væg. */
   wallMeshes(id: string): THREE.Object3D[] {
     const g = this.walls.get(id)?.group;

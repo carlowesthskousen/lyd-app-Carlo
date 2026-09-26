@@ -5,6 +5,7 @@ import { h, clear } from './dom';
 import { icon } from './icons';
 import { CatalogPanel } from './CatalogPanel';
 import { PropertiesPanel } from './PropertiesPanel';
+import { CameraHud } from './CameraHud';
 import { listProjects, deleteProject } from '../persistence/projects';
 import { formatArea } from '../building/BuildingView';
 
@@ -32,6 +33,7 @@ export class UI {
     new CatalogPanel(app, sidebar);
     new PropertiesPanel(app, stage.querySelector('#props')!);
     this.buildStats(stage.querySelector('#stats')!);
+    new CameraHud(app, stage);
     app.attachUi(stage.querySelector('#hint')!, stage.querySelector('#toasts')!);
     this.buildHelp(document.querySelector('#help')!);
 
@@ -83,14 +85,14 @@ export class UI {
     });
 
     // Vægvisning
-    const wallSeg = h('div.segmented.walls', { title: 'Vægvisning (C)' });
+    const wallSeg = h('div.segmented.walls', { title: 'Vægvisning (L)' });
     const wallModes: { m: WallMode; icon: string; t: string }[] = [
       { m: 'up', icon: 'wallsUp', t: 'Vægge oppe' },
       { m: 'cutaway', icon: 'wallsCut', t: 'Cutaway – vægge foran sænkes' },
       { m: 'down', icon: 'wallsDown', t: 'Vægge nede' },
     ];
     const wallBtns = wallModes.map((w) => {
-      const b = h('button', { onclick: () => app.setWallMode(w.m), html: icon(w.icon), title: `${w.t} (C)` });
+      const b = h('button', { onclick: () => app.setWallMode(w.m), html: icon(w.icon), title: `${w.t} (L)` });
       wallSeg.append(b);
       return { b, m: w.m };
     });
@@ -166,14 +168,47 @@ export class UI {
       app.on('settings', () => (s.value = get()));
       return s;
     };
-    const speed = h('input', { type: 'range', min: 0.2, max: 4, step: 0.1 }) as HTMLInputElement;
-    speed.value = String(app.camera.speed);
-    speed.addEventListener('input', () => (app.camera.speed = Number(speed.value)));
-    app.on('settings', () => (speed.value = String(app.camera.speed)));
+    const cam = app.camera;
+    const range = (min: number, max: number, step: number, get: () => number, set: (v: number) => void, fmt: (v: number) => string) => {
+      const input = h('input', { type: 'range', min, max, step }) as HTMLInputElement;
+      const out = h('output', {}, '');
+      const sync = () => {
+        input.value = String(get());
+        out.textContent = fmt(get());
+      };
+      input.addEventListener('input', () => {
+        set(Number(input.value));
+        out.textContent = fmt(Number(input.value));
+      });
+      app.on('settings', sync);
+      app.on('speed', sync);
+      sync();
+      return h('span.range', {}, input, out);
+    };
+    const pct = (v: number) => `${Math.round(v * 100)} %`;
+    const ms = (v: number) => `${v.toFixed(1).replace('.', ',')} m/s`;
 
     panel.append(
       h('h4', {}, 'Kamera'),
-      row('Hastighed', speed),
+      row(
+        'Tilstand (Tab)',
+        select(
+          [['build', 'Byg (orbit)'], ['drone', 'Drone (fri flyvning)']],
+          () => cam.mode,
+          (v) => cam.setMode(v as 'build' | 'drone'),
+        ),
+      ),
+      row('Musefølsomhed', range(0.2, 3, 0.05, () => cam.settings.sensitivity, (v) => cam.updateSettings({ sensitivity: v }), pct)),
+      row('Invertér Y', check(() => cam.settings.invertY, (v) => cam.updateSettings({ invertY: v }))),
+      row('Byggekamera, fart', range(0.2, 4, 0.05, () => cam.settings.buildSpeed, (v) => cam.updateSettings({ buildSpeed: v }), pct)),
+      h('h4', {}, 'Drone'),
+      row('Flyvehastighed', range(0.3, 30, 0.1, () => cam.settings.droneSpeed, (v) => cam.updateSettings({ droneSpeed: v }), ms)),
+      row(
+        'Glid (inerti)',
+        range(0, 1, 0.01, () => cam.settings.glide, (v) => cam.updateSettings({ glide: v }), (v) => (v < 0.2 ? 'Stram' : v > 0.75 ? 'Flydende' : 'Mellem')),
+      ),
+      row('Krængning', check(() => cam.settings.bank, (v) => cam.updateSettings({ bank: v }))),
+      row('Væg-kollision', check(() => cam.settings.wallCollision, (v) => cam.updateSettings({ wallCollision: v }))),
       h('h4', {}, 'Byggeri'),
       row('Snap til gitter', check(() => app.store.doc.settings.snapEnabled, (v) => app.store.setSettings({ snapEnabled: v }))),
       row(
@@ -258,13 +293,14 @@ export class UI {
       [
         'Kamera',
         [
-          ['W A S D / piletaster', 'Flyv vandret'],
-          ['E / Space · Q', 'Op · ned'],
-          ['Shift', 'Hurtigere'],
-          ['[ · ]', 'Langsommere · hurtigere kamera'],
-          ['Højreklik + træk', 'Drej / orbit om punktet'],
+          ['Tab', 'Skift Drone / Byg'],
+          ['W A S D', 'Flyv (drone: dertil du kigger)'],
+          ['Space / E · C / Q', 'Op · ned'],
+          ['Shift · Alt', 'Boost · præcision (drone)'],
+          ['Højreklik + træk', 'Drone: kig rundt · Byg: orbit'],
           ['Midterklik + træk', 'Panorér'],
-          ['Scroll', 'Zoom mod musen'],
+          ['Scroll', 'Drone: fart · Byg: zoom'],
+          ['[ · ]', 'Langsommere · hurtigere'],
           ['F', 'Fokusér på valgt'],
           ['T', 'Set oppefra'],
           ['Home', 'Nulstil visning'],
@@ -294,7 +330,7 @@ export class UI {
           ['Alt (hold)', 'Placér uden snap'],
           ['Shift (væg)', 'Lås vinkel til 45°'],
           ['Shift+klik (maling)', 'Mal hele rummet'],
-          ['C', 'Vægge oppe / cutaway / nede'],
+          ['L', 'Vægge oppe / cutaway / nede'],
           ['G', 'Vis/skjul gitter'],
           ['Ctrl+S', 'Gem'],
           ['H', 'Denne oversigt'],
@@ -311,7 +347,7 @@ export class UI {
       for (const [k, v] of rows) col.append(h('div.help-row', {}, h('kbd', {}, k), h('span', {}, v)));
       cols.append(col);
     }
-    card.append(cols, h('p.help-foot', {}, 'Tip: Højreklik-træk for at kigge rundt, og scroll for at zoome ind der, hvor musen peger.'));
+    card.append(cols, h('p.help-foot', {}, 'Controller: venstre stick bevæger, højre stick kigger, RT/LT op/ned, RB boost, LB præcision, Y skifter tilstand. Bemærk: Ctrl+W lukker fanen i browseren – dyk hellere med C.'));
     el.append(card);
     const toggle = (open?: boolean) => el.classList.toggle('open', open);
     el.addEventListener('pointerdown', (e) => e.target === el && toggle(false));
