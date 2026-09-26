@@ -1,0 +1,186 @@
+# Indretning – 3D-indretning og arkitektur i browseren
+
+Et spil til indretning og arkitektur i stil med The Sims' bygge- og købstilstand og Planet Coaster. Du er selve kameraet og flyver frit rundt. Du tegner vægge, sætter døre og vinduer i, maler, lægger gulve og indretter med møbler i rigtige mål.
+
+Bygget med **Vite + TypeScript + Three.js**. Der er ingen backend: projekter gemmes i browseren (localStorage), og de kan eksporteres og importeres som JSON.
+
+---
+
+## Kom i gang
+
+```bash
+cd indretning
+npm install
+npm run dev        # åbner udviklingsserveren på http://localhost:5173
+```
+
+| Kommando            | Hvad den gør                                   |
+| ------------------- | ---------------------------------------------- |
+| `npm run dev`       | Udviklingsserver med hot reload                |
+| `npm run build`     | Typetjek + produktionsbuild i `dist/`          |
+| `npm run preview`   | Kør det byggede spil lokalt                    |
+| `npm test`          | Unit-tests (væg-graf, rum, kollision, snap)    |
+
+Første gang åbner spillet et lille starterhus, så du kan gå i gang med det samme. **Projekter → Nyt tomt projekt** giver en tom grund.
+
+---
+
+## Styring
+
+Tryk **H** i spillet for at se alle hurtigtaster.
+
+**Kamera**
+
+| Input                      | Handling                                     |
+| -------------------------- | -------------------------------------------- |
+| W A S D / piletaster       | Flyv vandret i kameraets retning             |
+| E eller Space / Q          | Op / ned                                     |
+| Shift                      | Hurtigere (hastigheden kan også justeres med `[` `]` og under ⚙) |
+| Højreklik + træk           | Drej (orbit om punktet under musen)          |
+| Midterklik + træk          | Panorér (gulvet "følger musen")              |
+| Scroll                     | Zoom mod musens position                     |
+| F / T / Home               | Fokusér på valgt / set oppefra / nulstil     |
+
+Kameraet accelererer og bremser blødt og kan ikke komme under gulvet.
+
+**Værktøjer**
+
+| Tast | Værktøj                                                                 |
+| ---- | ----------------------------------------------------------------------- |
+| V    | Vælg & flyt (træk møbler, skub døre/vinduer langs væggen)               |
+| B    | Væg: klik punkt for punkt. Shift låser vinklen til 45°, dobbeltklik/Esc afslutter |
+| N    | Rum: træk et rektangel, så bygges fire vægge                             |
+| O    | Døre & vinduer: peg på en væg og klik. R spejlvender døren              |
+| P    | Maling & gulve: klik på en vægside eller et gulv. Shift+klik maler hele rummet |
+| X    | Slet: rødt omrids på objektet under musen. Klik sletter, og træk sletter flere |
+| K    | Skift mellem **Byg** og **Indret**                                      |
+| C    | Vægge oppe / cutaway / nede (som i The Sims)                            |
+| G    | Vis/skjul gitter                                                        |
+
+**Redigering:** Ctrl+Z / Ctrl+Y (fortryd/gentag alt), Ctrl+D (duplikér), Delete (slet), R / Shift+R (drej 15°), Alt+R eller Alt+scroll (fri rotation), hold Alt (placér uden snap), Ctrl+S (gem nu).
+
+---
+
+## Tilføj dine egne møbelmodeller
+
+Alle møbler styres af én fil: **`public/models/manifest.json`**. Hver linje i `items` er ét møbel. Det gør du for at tilføje et rigtigt møbel, fx fra en producents gratis 3D/CAD-download:
+
+### 1. Skaf modellen som GLB eller glTF
+
+Spillet læser **`.glb`** (anbefalet) og **`.gltf`**. Hvis producenten kun tilbyder andre formater:
+
+- **FBX, OBJ, 3DS, DAE, STL:** Åbn filen i [Blender](https://www.blender.org/) (gratis) med *File → Import*, og vælg derefter *File → Export → glTF 2.0*, format *glTF Binary (.glb)*.
+- **SketchUp (.skp):** Eksportér fra SketchUp som `.dae` eller `.fbx`, og konvertér i Blender som ovenfor.
+- **3ds Max / Revit / ArchiCAD-familier:** Eksportér som FBX, og konvertér i Blender.
+
+Tip: Gør store filer mindre med
+`npx @gltf-transform/cli optimize ind.glb ud.glb --compress meshopt`.
+Spillet understøtter både Meshopt- og Draco-komprimering.
+
+### 2. Læg filen i `public/models/`
+
+Brug gerne en mappe pr. producent:
+
+```
+public/models/
+  manifest.json
+  hay/about-a-chair-22.glb
+  hay/thumbs/about-a-chair-22.webp     (valgfri)
+```
+
+### 3. Tilføj én linje i `manifest.json`
+
+```json
+{"id": "hay-aac22", "name": "About A Chair AAC 22", "manufacturer": "HAY", "designer": "Hee Welling", "category": "stole", "dimensions": {"width": 52, "depth": 52, "height": 79}, "file": "hay/about-a-chair-22.glb", "thumbnail": "hay/thumbs/about-a-chair-22.webp", "recolorable": ["Shell"], "defaultColor": "#e8e2d6", "placement": "floor"},
+```
+
+Husk kommaet mellem linjerne (dog ikke efter den sidste). Genindlæs siden, så står møblet i kataloget.
+
+### 4. Felterne
+
+| Felt            | Påkrævet | Forklaring |
+| --------------- | :------: | ---------- |
+| `id`            | ✔ | Unikt id (kun små bogstaver, tal og bindestreg). Bruges i gemte projekter, så **skift det ikke** bagefter. |
+| `name`          | ✔ | Navnet i kataloget. |
+| `manufacturer`  |   | Producent, fx `"HAY"`. |
+| `designer`      |   | Designer, fx `"Hee Welling"`. |
+| `category`      | ✔ | `stole`, `borde`, `sofaer`, `lamper`, `opbevaring`, `senge`, `dekoration` eller `koekken-bad`. |
+| `dimensions`    | ✔ | **Rigtige mål i cm**: `width` (bredde, venstre–højre set forfra), `depth` (dybde, for–bag) og `height`. |
+| `file`          | ✔* | Sti til `.glb`/`.gltf` relativt til `public/models/`. |
+| `procedural`    | ✔* | Navn på en indbygget placeholder (se nedenfor). *Enten `file` eller `procedural`. Har du begge, bruges placeholderen, hvis filen ikke kan indlæses. |
+| `thumbnail`     |   | Billede til kataloget (png/jpg/webp). Mangler det, renderer spillet selv et thumbnail. |
+| `rotationY`     |   | Grader. Brug det, hvis modellens forside ikke vender mod betragteren, fx `90`, `-90` eller `180`. |
+| `scaleMode`     |   | `"fit"` (standard) strækker modellen, så den passer præcist til målene. `"uniform"` bevarer proportionerne og holder sig inden for målene. |
+| `recolorable`   |   | `true` = hele modellen kan farves. En liste som `["Stof", "Shell"]` = kun materialer med de navne kan farves. Undlad feltet, hvis farven ikke skal kunne ændres. |
+| `defaultColor`  |   | Startfarve (hex). |
+| `finishes`      |   | Materialevalg i egenskabspanelet: `stof`, `laeder`, `trae`, `lak`, `metal`. `defaultFinish` vælger standarden. |
+| `light`         |   | Gør møblet til en lampe: `{"color": "#ffd9a8", "intensity": 6, "distance": 7, "height": 140}`. `height` er lyskildens højde i cm over møblets bund. |
+| `placement`     |   | `floor` (standard), `surface` (kan stå på borde/kommoder), `wall` (hænger på væggen) eller `ceiling` (hænger fra loftet). |
+| `elevation`     |   | Standardhøjde over gulv i cm for `wall`/`ceiling`. |
+| `tags`          |   | Ekstra søgeord til katalogets søgefelt. |
+
+### Sådan virker den automatiske skalering
+
+Det er ligegyldigt, om modellen er lavet i millimeter, centimeter, meter eller tommer. Når modellen indlæses, sker følgende:
+
+1. Den drejes med `rotationY`.
+2. Dens bounding box måles, og den skaleres, så bredde × dybde × højde passer **præcis** til `dimensions`.
+3. Den centreres og sættes med bunden på gulvet.
+4. Meshes med samme materiale slås sammen til én, så der er færre draw calls og bedre fps.
+
+Eksemplet `public/models/eksempel/laenestol-eksempel.glb` er bevidst modelleret i **millimeter** og med forsiden den forkerte vej. Manifestet giver den `"rotationY": -90`, og spillet skalerer den selv til 76 × 74 × 70 cm.
+
+### Fejlfinding
+
+Åbn browserens udviklerkonsol (F12):
+
+- **"Manifest-linjen … springes over"**: Et påkrævet felt mangler, eller kategorien er stavet forkert.
+- **"Kunne ikke indlæse …"**: Filstien er forkert, eller filen er ikke gyldig glTF. Møblet vises som placeholder (eller som en kasse), og i egenskabspanelet står der en advarsel.
+- **"modellens proportioner afviger …"**: Bredde og dybde er formentlig byttet om, eller modellen skal drejes. Prøv `"rotationY": 90`.
+- **Farven virker ikke:** Materialenavnene i `recolorable` skal matche navnene i filen. Du kan se dem i Blender (Material-fanen) eller ved at trække filen ind i <https://gltf-viewer.donmccurdy.com/>.
+
+> Husk at læse producentens licensvilkår. Mange 3D-filer må bruges til egne projekter, men ikke videredistribueres.
+
+### Indbyggede placeholders (`procedural`)
+
+`diningChair`, `armchair`, `officeChair`, `stool`, `diningTable`, `roundTable`, `coffeeTable`, `glassTable`, `sideTable`, `desk`, `sofa`, `sofaChaise`, `pouf`, `floorLamp`, `tableLamp`, `pendant`, `bookshelf`, `dresser`, `sideboard`, `wardrobe`, `tvBench`, `bed`, `nightstand`, `plant`, `plantSmall`, `rug`, `picture`, `mirror`, `vase`, `tv`, `kitchenCounter`, `kitchenSink`, `stove`, `fridge`, `toilet`, `bathtub`, `bathSink`.
+
+De tilpasser sig automatisk til de mål, du angiver. `"procedural": "sofa"` med bredde 300 giver fx en 3-personers sofa, der er 3 m bred.
+
+---
+
+## Egne teksturer til gulve og vægge
+
+Gulv- og vægmaterialerne (træ, fliser, beton, tæppe, mursten, puds) genereres procedurelt i `src/render/textures.ts`, så spillet ikke er afhængigt af eksterne filer. Vil du bruge rigtige PBR-teksturer, så læg billederne i `public/textures/` og skift den relevante `case` i `src/render/materials.ts` ud med `new THREE.TextureLoader().load('textures/eg.jpg')`. Sæt `colorSpace = SRGBColorSpace` og `repeat` til `1 / meter pr. flise`. Farvelister og materialenavne i Byg-panelet findes i `src/building/buildCatalog.ts`.
+
+---
+
+## Opbygning af koden
+
+```
+src/
+  state/        Dokumentmodel (ProjectDoc), Store med transaktioner og fortryd/gentag
+  camera/       FlyCamera: frit kamera med dæmpning, orbit, panorering, zoom mod musen
+  building/     Væg-graf (hjørnesamlinger, deling, rumdetektion), vægge med huller,
+                døre/vinduer, gulve, cutaway
+  furniture/    Katalog + manifest, model-loader med autoskalering, procedurale
+                placeholders, kollision (OBB/SAT), væg-snap, lyspulje for lamper
+  tools/        Vælg, Væg, Rum, Døre & vinduer, Møbelplacering, Maling, Slet
+  render/       Renderer, sol/himmel/tidspunkt, SSAO (GTAO), omrids, materialer
+  ui/           Top-bar, værktøjslinje, katalog, egenskabspanel, hjælp, projekter
+  persistence/  localStorage, JSON-eksport/-import, starterhus
+  app.ts        Binder det hele sammen (input, genveje, render-loop, autosave)
+```
+
+**Princip:** Hele projektet er ét serialiserbart dokument. 3D-scenen *afledes* af dokumentet, og alle ændringer sker i transaktioner (`store.transact(...)`). Derfor virker fortryd/gentag, autosave og eksport automatisk for alle handlinger, også nye, du selv tilføjer.
+
+## Ydelse
+
+- Møbelmodeller bages og slås sammen pr. materiale, og materialer deles mellem møbler.
+- Skyggekortet gentegnes kun, når noget ændrer sig. Skyggekameraet tilpasses huset.
+- Lamper bruger en fast pulje på 8 lyskilder, som tildeles de tændte lamper nærmest kameraet. Det giver ingen shader-genkompilering og stabil fps, uanset hvor mange lamper der står.
+- Hvis billedfrekvensen falder under 40 fps i flere sekunder, slås SSAO automatisk fra, og derefter sænkes opløsningen. Alt kan justeres under ⚙.
+
+## Projektformat
+
+Eksporterede projekter er JSON (`*.indretning.json`) med `version: 1`. Det indeholder noder, vægge, åbninger, rumstile (gulv og navn), møbler og indstillinger. Koordinater er i meter, og rotation er i radianer. Ved import valideres og ryddes filen, og projektet får et nyt id.
