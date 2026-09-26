@@ -342,14 +342,19 @@ export class UI {
             { class: current ? 'project-row current' : 'project-row' },
             h('div.meta', {}, h('b', {}, p.name), h('span', {}, `${date} · ${p.walls} vægge · ${p.furniture} møbler`)),
             h('button.btn', { onclick: () => (app.openProject(p.id), close()), disabled: current }, current ? 'Åben' : 'Åbn'),
-            h('button.icon-btn', {
-              html: icon('trash', 18),
+            h('button.btn.danger', {
+              html: icon('trash', 16),
               title: 'Slet projekt',
               disabled: current,
-              onclick: () => {
-                if (confirm(`Slet "${p.name}"? Det kan ikke fortrydes.`)) {
+              onclick: (e: Event) => {
+                // To klik: første klik beder om bekræftelse (ingen browser-dialog).
+                const b = e.currentTarget as HTMLButtonElement;
+                if (b.dataset.armed) {
                   deleteProject(p.id);
                   render();
+                } else {
+                  b.dataset.armed = '1';
+                  b.innerHTML = `${icon('trash', 16)}<span>Klik igen for at slette</span>`;
                 }
               },
             }),
