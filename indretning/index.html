@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Indretning</title>
+    <meta name="description" content="3D-indretnings- og arkitektspil i browseren" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 30'%3E%3Cpath d='M11 0l9 12-9 18-9-18z' fill='%233fb45f'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="topbar"></header>
+      <nav id="toolbar" aria-label="Værktøjer"></nav>
+      <main id="stage">
+        <div id="viewport"></div>
+        <div id="props" class="panel-card"></div>
+        <div id="hint"></div>
+        <div id="stats"></div>
+        <div id="toasts" aria-live="polite"></div>
+        <div id="loading">Indlæser …</div>
+      </main>
+      <aside id="sidebar"></aside>
+    </div>
+    <div id="help"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
