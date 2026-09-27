@@ -768,6 +768,11 @@ input[type='color'] {
   text-align: left;
 }
 .wall-sign:hover { background: #ffefc4; }
+.wall-sign[hidden] { display: none; }
+.segmented button { white-space: nowrap; }
+@media (max-width: 1560px) {
+  .segmented.walls .seg-label, .select-filter .seg-label { display: none; }
+}
 @media (max-width: 1250px) {
-  .segmented.walls button span, .segmented.walls .seg-label, .select-filter .seg-label { display: none; }
+  .segmented.walls button span { display: none; }
 }

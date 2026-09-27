@@ -87,8 +87,8 @@ export class UI {
 
     // Markeringsfilter
     const filterSeg = h('div.segmented.small.select-filter', { title: 'Hvad markeringsboks og Cmd/Ctrl+A må markere' });
-    const fAll = h('button', { onclick: () => app.setSelectionFilter('all') }, 'Alt');
-    const fFurn = h('button', { onclick: () => app.setSelectionFilter('furniture') }, 'Kun møbler');
+    const fAll = h('button', { onclick: () => app.setSelectionFilter('all'), title: 'Markér møbler, vægge, døre og vinduer' }, 'Alt');
+    const fFurn = h('button', { onclick: () => app.setSelectionFilter('furniture'), title: 'Markér kun møbler' }, 'Møbler');
     filterSeg.append(h('span.seg-label', {}, 'Markér'), fFurn, fAll);
     const syncFilter = () => {
       fAll.classList.toggle('active', app.selectionFilter === 'all');
