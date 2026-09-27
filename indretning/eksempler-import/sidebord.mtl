@@ -1,0 +1,7 @@
+# Materialer til sidebord.obj
+newmtl Bordplade
+Kd 0.70 0.55 0.38
+Ns 30
+newmtl Ben
+Kd 0.08 0.08 0.08
+Ns 60

@@ -88,6 +88,31 @@ Dronen accelererer blødt og glider videre, når du slipper tasterne. Den kræng
 
 ---
 
+## Importér møbler direkte i spillet (Mine møbler)
+
+Den hurtigste måde at få dine egne møbler med. Der er ingen server og ingen kommandolinje.
+
+1. **Træk filerne ind i spillets vindue**, eller klik **Importér møbel** i kataloget. Det virker med:
+   - `.glb`, `.gltf`, `.fbx` og `.obj`, gerne med teksturer, `.mtl`- og `.bin`-filer ved siden af.
+   - En hel producent-mappe eller en `.zip`. Spillet vælger selv den bedste fil (GLB > glTF > FBX > OBJ) og springer `.dwg`, `.skp`, `.max`, PDF'er osv. over.
+   - Flere forskellige møbler på én gang. De importeres ét ad gangen med "Spring over".
+2. **Import-dialogen** (tager under 30 sekunder):
+   - Drej modellen med musen. En 180 cm figur står ved siden af, så du kan se, om størrelsen er rigtig.
+   - Navnet gættes ud fra filnavnet, og kategorien ud fra navnet.
+   - **Målene aflæses fra modellen**, og enheden (mm, cm, m eller tommer) gættes. Er gættet forkert, skifter du enhed, og målene regnes om. Du kan også skrive målene direkte, med eller uden låste proportioner.
+   - **Drej forside 90°**, hvis møblet vender forkert. **Stå på gulvet** vipper det 90°, hvis det ligger ned (typisk for CAD-eksporter med Z op).
+   - **Materialer:** Hver materialedel står i en liste. Klik på en del (i listen eller i 3D) for at se den fremhævet, og giv den en forudindstilling: ask, eg, valnød, sort lak, hvid lak, naturlæder, sort læder, stof, messing, krom, opal glas eller klart glas. Teksturerne får automatiske UV'er, ligesom After Chair. Sæt flueben ved **Kan farves** for de dele, der skal kunne farves i spillet.
+3. Klik **Tilføj til katalog**. Møblet ligger nu under **Mine møbler** og i sin normale kategori.
+
+**Lagring:** Importerede møbler gemmes **kun lokalt i din browser** (IndexedDB), aldrig i repoet eller på en offentlig side. Projekter, der bruger dem, virker efter genindlæsning. I **Mine møbler** kan du:
+- **redigere** (✎) og **slette** (🗑, to klik),
+- **eksportere hele biblioteket** som én fil (`*.indretning-bibliotek.json`) til backup eller flytning til en anden computer,
+- **importere biblioteket** igen. Du kan også trække backup-filen ind i vinduet.
+
+**Prøv det:** Mappen `eksempler-import/` indeholder `loungestol.fbx` (cm), `sidebord.obj` + `.mtl` (mm) og `producent-pakke.zip` (samme stol i flere formater plus CAD-filer).
+
+> Et projekt eksporteret som JSON indeholder ikke selve møbelmodellerne. Tag også en biblioteks-backup, hvis du flytter til en anden computer.
+
 ## Tilføj dine egne møbelmodeller
 
 Alle møbler styres af én fil: **`public/models/manifest.json`**. Hver linje i `items` er ét møbel. Det gør du for at tilføje et rigtigt møbel, fx fra en producents gratis 3D/CAD-download:
@@ -182,7 +207,7 @@ Stierne er relative til `public/models/`. De automatiske UV'er lægger træets �
 2. Læg filerne i `public/models/textures/<navn>/`.
 3. Peg `map`, `normalMap` og `roughnessMap` på dem, og sæt `textureSize` til teksturens rigtige størrelse i meter (står på downloadsiden).
 
-Den medfølgende ask-tekstur er genereret med `node tools/generate-ash-texture.mjs` og kan justeres i scriptet.
+De medfølgende træ- og læderteksturer (ask, eg, valnød, læder) er genereret med `node tools/generate-textures.mjs` og kan justeres i scriptet. Med `"preset": "eg"` (eller en anden forudindstilling) i stedet for teksturstier kan du bruge dem direkte i manifestet.
 
 ### Sådan virker den automatiske skalering
 
@@ -236,6 +261,9 @@ src/
   render/       Renderer, sol/himmel/tidspunkt, SSAO (GTAO), omrids, materialer
   ui/           Top-bar, værktøjslinje, katalog, egenskabspanel, hjælp, projekter
   persistence/  localStorage, JSON-eksport/-import, starterhus
+  import/       Træk-og-slip, zip/mapper, konvertering (GLTF/FBX/OBJ-loaders), import-dialog
+  library/      Mine møbler i IndexedDB (backup/gendan)
+  materials/    Materiale-forudindstillinger (ask, eg, valnød, læder, metal, glas …)
   app.ts        Binder det hele sammen (input, genveje, render-loop, autosave)
 ```
 

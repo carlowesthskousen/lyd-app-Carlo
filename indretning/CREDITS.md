@@ -13,7 +13,7 @@ Alle andre møbler er procedurale placeholders, der genereres i koden (`src/furn
 
 | Tekstur | Kilde og licens |
 | ------- | --------------- |
-| Hvidpigmenteret ask (`public/models/textures/ask-hvidpigmenteret/`: albedo, normal, roughness) | Procedural tekstur lavet til dette projekt med `tools/generate-ash-texture.mjs`. Kan frit bruges. |
+| Ask, eg, valnød og læder (`public/models/textures/…`: albedo, normal, roughness) | Procedurale teksturer lavet til dette projekt med `tools/generate-textures.mjs`. Kan frit bruges. |
 | Gulve, vægge, stof og græs | Genereres procedurelt i `src/render/textures.ts`. |
 
 > **After Chair-filen ligger ikke i git.** Repoet er offentligt, og modellen må kun bruges privat, så `public/models/fritz-hansen/*.glb` står i `.gitignore`. Læg selv `after-chair.glb` i `indretning/public/models/fritz-hansen/` i din lokale kopi. Manifest-linjen og ask-teksturen er i repoet. Uden filen viser spillet en placeholder-spisestol med en advarsel.

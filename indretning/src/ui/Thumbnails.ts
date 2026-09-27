@@ -39,6 +39,10 @@ export class Thumbnails {
     return r;
   }
 
+  invalidate(id: string) {
+    this.cache.delete(id);
+  }
+
   get(entry: CatalogEntry): Promise<string> {
     let p = this.cache.get(entry.id);
     if (!p) {

@@ -5,6 +5,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { type Catalog, type CatalogEntry, type MaterialOverride, dimsMeters } from './catalog';
 import { buildProcedural } from './procedural';
+import { createPresetMaterial } from '../materials/presets';
 
 /**
  * Indlæser og normaliserer møbelmodeller.
@@ -30,6 +31,13 @@ export class ModelLibrary {
     this.loader.setMeshoptDecoder(MeshoptDecoder);
   }
 
+  /** Glem en model (fx efter redigering), så den indlæses igen næste gang. */
+  invalidate(id: string) {
+    this.cache.delete(id);
+    this.ready.delete(id);
+    this.errors.delete(id);
+  }
+
   getReady(id: string) {
     return this.ready.get(id);
   }
@@ -50,6 +58,14 @@ export class ModelLibrary {
   private async overrideMaterials(entry: CatalogEntry): Promise<Map<string, OverrideResult>> {
     const out = new Map<string, OverrideResult>();
     for (const [name, def] of Object.entries(entry.materials ?? {})) {
+      if (def.preset) {
+        const p = await createPresetMaterial(def.preset, name, this.catalog.base).catch(() => null);
+        if (p) {
+          if (def.color) p.material.color.multiply(new THREE.Color(def.color));
+          out.set(name, { material: p.material, def: { textureSize: p.textureSize, ...def }, textured: p.textured });
+          continue;
+        }
+      }
       const m = new THREE.MeshStandardMaterial({
         color: def.color ?? '#ffffff',
         roughness: def.roughness ?? 1,
@@ -270,7 +286,7 @@ export function bakeAndMerge(root: THREE.Object3D, mainToken: THREE.Material | n
  * placering ind, pakkes attributten ud til almindelige 32-bit tal – ellers
  * ville koordinater i meter blive klippet til intervallet [-1, 1].
  */
-function toFloat(attr: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): THREE.BufferAttribute {
+export function toFloat(attr: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): THREE.BufferAttribute {
   if (!(attr instanceof THREE.InterleavedBufferAttribute) && attr.array instanceof Float32Array) return attr as THREE.BufferAttribute;
   const n = attr.count;
   const size = attr.itemSize;

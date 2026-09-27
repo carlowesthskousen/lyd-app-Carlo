@@ -23,7 +23,16 @@ export class CatalogPanel {
     this.body = h('div.panel-body');
     el.append(this.title, this.body);
     app.on('mode', () => this.render());
-    app.on('catalog', () => this.render());
+    app.on('catalog', () => {
+      for (const id of app.changedEntries) this.thumbs.invalidate(id);
+      app.changedEntries.clear();
+      this.render();
+    });
+    app.on('showMine', () => {
+      this.category = 'mine';
+      this.query = '';
+      this.render();
+    });
     app.on('tool', () => this.syncActive());
     this.render();
   }
@@ -39,13 +48,17 @@ export class CatalogPanel {
   // ---------------------------------------------------------------- Indret (møbler)
 
   private renderBuy() {
-    this.title.append(h('h2', {}, 'Møbler'), h('span.muted', {}, `${this.app.catalog.entries.size} varer`));
+    this.title.append(
+      h('h2', {}, 'Møbler'),
+      h('span.muted', {}, `${this.app.catalog.entries.size} varer`),
+      h('button.btn.small.import-btn', { html: `${icon('import', 16)}<span>Importér møbel</span>`, title: 'Importér .glb, .gltf, .fbx, .obj eller en .zip – eller træk filer ind i vinduet', onclick: () => this.app.importer.pickFiles() }),
+    );
     const search = h('input.search', { type: 'search', placeholder: 'Søg i kataloget …', value: this.query }) as HTMLInputElement;
     const searchBox = h('label.search-box', { html: icon('search', 16) }, search);
     const cats = h('div.cats');
     for (const c of CATEGORIES) {
       const count = this.app.catalog.byCategory(c.id).length;
-      if (!count) continue;
+      if (!count && c.id !== 'mine') continue;
       const b = h('button.cat', {
         html: `${icon(c.icon, 20)}<span>${c.name}</span>`,
         title: c.name,
@@ -67,7 +80,17 @@ export class CatalogPanel {
             [e.name, e.manufacturer, e.designer, e.category, ...(e.tags ?? [])].join(' ').toLowerCase().includes(q),
           )
         : this.app.catalog.byCategory(this.category);
-      if (!items.length) grid.append(h('p.muted', {}, 'Ingen møbler fundet.'));
+      if (!items.length && !q && this.category === 'mine') {
+        grid.append(
+          h(
+            'div.mine-empty',
+            { onclick: () => this.app.importer.pickFiles() },
+            h('span', { html: icon('cube', 28) }),
+            h('b', {}, 'Træk dine egne møbler ind her'),
+            h('span', {}, 'Træk .glb, .fbx, .obj, en mappe eller en .zip fra producenten ind i vinduet – eller klik for at vælge filer. Møblerne gemmes kun i din browser.'),
+          ),
+        );
+      } else if (!items.length) grid.append(h('p.muted', {}, 'Ingen møbler fundet.'));
       for (const e of items) grid.append(this.card(e));
     };
     search.addEventListener('input', () => {
@@ -76,7 +99,16 @@ export class CatalogPanel {
       fill();
     });
     fill();
-    this.body.append(searchBox, cats, grid, h('p.panel-foot', {}, 'Træk et møbel ind i rummet, eller klik og placér. Tilføj dine egne modeller i public/models (se README).'));
+    const mineTools =
+      this.category === 'mine' && !this.query
+        ? h(
+            'div.mine-tools',
+            {},
+            h('button.btn.small', { html: `${icon('download', 14)}<span>Eksportér bibliotek</span>`, title: 'Gem alle dine møbler i én fil (backup eller flytning)', onclick: () => this.app.importer.exportLibrary() }),
+            h('button.btn.small', { html: `${icon('upload', 14)}<span>Importér bibliotek</span>`, title: 'Indlæs en backup-fil', onclick: () => this.app.importer.pickLibraryBackup() }),
+          )
+        : null;
+    this.body.append(searchBox, cats, mineTools ?? '', grid, h('p.panel-foot', {}, 'Træk et møbel ind i rummet, eller klik og placér. Træk dine egne 3D-filer ind i vinduet for at importere dem.'));
   }
 
   private card(e: CatalogEntry) {
@@ -97,6 +129,36 @@ export class CatalogPanel {
       h('div.card-dims', {}, `${e.dimensions.width}×${e.dimensions.depth}×${e.dimensions.height}`),
     );
     if (e.light) card.append(h('span.badge', { html: icon('bulb', 14), title: 'Udsender lys' }));
+    if (e.source === 'user') {
+      const stop = (ev: Event) => ev.stopPropagation();
+      const del = h('button.card-action.danger', { html: icon('trash', 14), title: 'Slet fra Mine møbler', 'aria-label': 'Slet' }) as HTMLButtonElement;
+      del.addEventListener('pointerdown', stop);
+      del.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        // To klik: første klik beder om bekræftelse (ingen browser-dialog).
+        if (del.dataset.armed) {
+          void this.app.importer.remove(e.id);
+          return;
+        }
+        const used = Object.values(this.app.store.doc.furniture).filter((f) => f.catalogId === e.id).length;
+        del.dataset.armed = '1';
+        del.classList.add('armed');
+        del.innerHTML = `<span>${used ? `Slet (+${used} i projektet)` : 'Slet?'}</span>`;
+        setTimeout(() => {
+          delete del.dataset.armed;
+          del.classList.remove('armed');
+          del.innerHTML = icon('trash', 14);
+        }, 3000);
+      });
+      const edit = h('button.card-action', { html: icon('edit', 14), title: 'Redigér', 'aria-label': 'Redigér' });
+      edit.addEventListener('pointerdown', stop);
+      edit.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        void this.app.importer.edit(e.id);
+      });
+      card.append(h('div.card-actions', {}, edit, del));
+      card.classList.add('user');
+    }
     card.addEventListener('pointerdown', (ev) => {
       if (ev.button !== 0) return;
       ev.preventDefault();

@@ -208,6 +208,16 @@ export class FurnitureView {
     }
   }
 
+  /** Genopbyg alle møbler af en bestemt katalogvare (efter redigering i biblioteket). */
+  refreshEntry(catalogId: string, doc: ProjectDoc) {
+    for (const [id, inst] of this.instances) {
+      if (inst.catalogId !== catalogId) continue;
+      this.root.remove(inst.root);
+      this.instances.delete(id);
+    }
+    this.sync(doc);
+  }
+
   objectFor(id: string) {
     return this.instances.get(id)?.root;
   }

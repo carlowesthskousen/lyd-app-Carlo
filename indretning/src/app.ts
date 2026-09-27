@@ -28,6 +28,7 @@ import { exportJson, importJson, lastProjectId, loadProject, saveProject } from 
 import { demoProject } from './persistence/demo';
 import { WALL_PRESETS } from './building/buildCatalog';
 import { sweepSphere } from './camera/collision';
+import { ImportManager } from './import/ImportManager';
 
 export type Mode = 'build' | 'buy';
 type AppEvent =
@@ -44,7 +45,8 @@ type AppEvent =
   | 'escape'
   | 'camera'
   | 'cameraMode'
-  | 'speed';
+  | 'speed'
+  | 'showMine';
 
 export interface Stats {
   fps: number;
@@ -64,6 +66,9 @@ export class App implements Editor {
   readonly catalog = new Catalog();
   readonly library: ModelLibrary;
   readonly overlay: Overlay;
+  readonly importer: ImportManager;
+  /** Katalogvarer, der er ændret siden sidste visning (thumbnails skal laves igen). */
+  readonly changedEntries = new Set<string>();
 
   selection: PickRef | null = null;
   toolId: ToolId = 'select';
@@ -95,6 +100,7 @@ export class App implements Editor {
     this.furniture = new FurnitureView(this.viewport.scene, this.catalog, this.library);
     this.picker.roots = [this.building.root, this.furniture.root];
     this.overlay = new Overlay(this.viewport.scene);
+    this.importer = new ImportManager(this);
     this.camera = new FlyCamera(this.viewport.camera, host, (ndc) => {
       const hit = this.picker.pick(ndc);
       return hit?.point ?? this.picker.groundPoint(ndc);
@@ -147,6 +153,9 @@ export class App implements Editor {
 
   async init() {
     await this.catalog.load();
+    // Mine møbler skal være i kataloget, før et projekt, der bruger dem, åbnes.
+    await this.importer.init();
+    this.importer.bindDropZone();
     this.emit('catalog');
     const last = lastProjectId();
     const doc = (last && loadProject(last)) || this.createDemo();
@@ -289,6 +298,20 @@ export class App implements Editor {
     if (this.store.inTransaction) return;
     const label = this.store.redo();
     this.toast(label ? `Gentaget: ${label}` : 'Intet at gentage');
+  }
+
+  /** En katalogvare er tilføjet eller ændret: indlæs modellen igen overalt. */
+  catalogItemChanged(id: string) {
+    this.library.invalidate(id);
+    this.changedEntries.add(id);
+    this.furniture.refreshEntry(id, this.store.doc);
+    this.emit('catalog');
+  }
+
+  /** Vis kategorien "Mine møbler" i kataloget. */
+  showMine() {
+    this.setMode('buy');
+    this.emit('showMine');
   }
 
   // ---------------------------------------------------------------- tools & selection

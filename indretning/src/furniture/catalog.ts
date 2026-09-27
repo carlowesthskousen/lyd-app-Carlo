@@ -1,6 +1,7 @@
 import type { Finish } from '../state/types';
 
 export type CategoryId =
+  | 'mine'
   | 'stole'
   | 'borde'
   | 'sofaer'
@@ -11,6 +12,7 @@ export type CategoryId =
   | 'koekken-bad';
 
 export const CATEGORIES: { id: CategoryId; name: string; icon: string }[] = [
+  { id: 'mine', name: 'Mine møbler', icon: 'star' },
   { id: 'stole', name: 'Stole', icon: 'chair' },
   { id: 'borde', name: 'Borde', icon: 'table' },
   { id: 'sofaer', name: 'Sofaer', icon: 'sofa' },
@@ -29,6 +31,8 @@ export type Placement = 'floor' | 'surface' | 'wall' | 'ceiling';
  * rigtig tekstur. Stier er relative til /models/.
  */
 export interface MaterialOverride {
+  /** Forudindstilling fra src/materials/presets.ts, fx "ask", "valnoed", "krom". */
+  preset?: string;
   color?: string;
   roughness?: number;
   metalness?: number;
@@ -80,6 +84,8 @@ export interface CatalogEntry {
   elevation?: number;
   price?: number;
   tags?: string[];
+  /** "user" = importeret i spillet og gemt lokalt i browseren (Mine møbler). */
+  source?: 'user';
 }
 
 export interface Manifest {
@@ -128,11 +134,16 @@ export class Catalog {
   }
 
   byCategory(cat: CategoryId) {
+    if (cat === 'mine') return [...this.entries.values()].filter((e) => e.source === 'user');
     return [...this.entries.values()].filter((e) => e.category === cat);
   }
 
+  remove(id: string) {
+    this.entries.delete(id);
+  }
+
   url(path: string) {
-    return /^(https?:|data:|\/)/.test(path) ? path : this.base + path;
+    return /^(https?:|data:|blob:|\/)/.test(path) ? path : this.base + path;
   }
 }
 
@@ -140,7 +151,7 @@ export function validateEntry(e: CatalogEntry): string[] {
   const p: string[] = [];
   if (!e.id) p.push('mangler "id"');
   if (!e.name) p.push('mangler "name"');
-  if (!CATEGORIES.some((c) => c.id === e.category)) p.push(`ukendt kategori "${e.category}"`);
+  if (!CATEGORIES.some((c) => c.id === e.category) || e.category === 'mine') p.push(`ukendt kategori "${e.category}"`);
   const d = e.dimensions;
   if (!d || !(d.width > 0) || !(d.depth > 0) || !(d.height > 0)) p.push('"dimensions" skal have width, depth og height i cm');
   if (!e.file && !e.procedural) p.push('angiv enten "file" eller "procedural"');
