@@ -9,6 +9,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { Lighting } from './lighting';
 import { createGrid } from './grid';
 import { grassTexture, TEXTURE_SIZE_M } from './textures';
+import { setMaxAnisotropy } from './anisotropy';
 
 export interface Quality {
   ssao: boolean;
@@ -39,6 +40,8 @@ export class Viewport {
   constructor(private host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
     const r = this.renderer;
+    // Brug grafikkortets maksimale anisotropi (før der laves teksturer)
+    setMaxAnisotropy(r.capabilities.getMaxAnisotropy());
     r.setPixelRatio(this.quality.pixelRatio);
     r.outputColorSpace = THREE.SRGBColorSpace;
     r.toneMapping = THREE.ACESFilmicToneMapping;
@@ -134,14 +137,17 @@ export class Viewport {
   }
 
   setQuality(q: Partial<Quality>) {
+    const shadowChanged = q.shadowSize !== undefined && q.shadowSize !== this.quality.shadowSize;
     Object.assign(this.quality, q);
     this.gtao.enabled = this.quality.ssao;
-    this.lighting.setShadowQuality(this.quality.shadowSize);
+    if (shadowChanged) {
+      this.lighting.setShadowQuality(this.quality.shadowSize);
+      this.markShadowsDirty();
+    }
     if (this.renderer.getPixelRatio() !== this.quality.pixelRatio) {
       this.renderer.setPixelRatio(this.quality.pixelRatio);
       this.resize();
     }
-    this.markShadowsDirty();
   }
 
   markShadowsDirty() {

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { maxAnisotropy } from '../render/anisotropy';
 import { fabricTexture, TEXTURE_SIZE_M } from '../render/textures';
 
 /**
@@ -51,7 +52,7 @@ function loadTex(url: string, srgb: boolean) {
     p = new THREE.TextureLoader().loadAsync(url).then((t) => {
       t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.anisotropy = 8;
+      t.anisotropy = maxAnisotropy();
       return t;
     });
     texCache.set(key, p);

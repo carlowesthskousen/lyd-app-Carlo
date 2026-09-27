@@ -29,6 +29,8 @@ import { demoProject } from './persistence/demo';
 import { WALL_PRESETS } from './building/buildCatalog';
 import { sweepSphere } from './camera/collision';
 import { ImportManager } from './import/ImportManager';
+import { AdaptiveQuality } from './render/adaptiveQuality';
+import { thumbnailsPending } from './ui/Thumbnails';
 import {
   type Clip,
   copySelection,
@@ -80,6 +82,8 @@ export class App implements Editor {
   readonly library: ModelLibrary;
   readonly overlay: Overlay;
   readonly importer: ImportManager;
+  readonly quality: AdaptiveQuality;
+  private lastCameraMove = 0;
   /** Katalogvarer, der er ændret siden sidste visning (thumbnails skal laves igen). */
   readonly changedEntries = new Set<string>();
 
@@ -117,6 +121,17 @@ export class App implements Editor {
     this.picker.roots = [this.building.root, this.furniture.root];
     this.overlay = new Overlay(this.viewport.scene);
     this.importer = new ImportManager(this);
+    // Dynamisk kvalitet: ingen målinger mens dialoger, import eller thumbnails kører
+    this.quality = new AdaptiveQuality(
+      this.viewport,
+      () => !!document.querySelector('.modal-bg, .import-bg, #help.open') || this.importer.isBusy || thumbnailsPending > 0,
+    );
+    this.quality.onChange = () => this.emit('stats');
+    this.quality.pause(5000); // indlæsning
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) this.quality.pause(2500); // fanen er lige blevet aktiv
+    });
+    window.addEventListener('focus', () => this.quality.pause(1500));
     this.camera = new FlyCamera(this.viewport.camera, host, (ndc) => {
       const hit = this.picker.pick(ndc);
       return hit?.point ?? this.picker.groundPoint(ndc);
@@ -126,7 +141,10 @@ export class App implements Editor {
         if (this.toolId !== 'select') this.setTool('select');
       }
     };
-    this.camera.onChange = () => this.scheduleCameraSave();
+    this.camera.onChange = () => {
+      this.lastCameraMove = performance.now();
+      this.scheduleCameraSave();
+    };
     this.camera.collide = (from, delta) => this.collideWalls(from, delta);
     // R og piletaster styrer markeringen, når noget er markeret i markeringsværktøjet
     this.camera.keyFilter = (code) =>
@@ -239,6 +257,7 @@ export class App implements Editor {
   }
 
   loadDoc(doc: ProjectDoc) {
+    this.quality?.pause(3000); // nyt projekt: modeller og thumbnails indlæses
     this.select(null);
     this.store.load(doc);
     this.camera.setPose(doc.camera ?? this.framingPose(), false);
@@ -885,8 +904,6 @@ export class App implements Editor {
   lastLowered = 0;
   private frames = 0;
   private fpsTime = 0;
-  private slowSeconds = 0;
-  private startTime = performance.now();
 
   private loop = () => {
     requestAnimationFrame(this.loop);
@@ -914,29 +931,16 @@ export class App implements Editor {
   };
 
   private measure(dt: number) {
+    // Dynamisk kvalitet (se render/adaptiveQuality.ts)
+    const moving = performance.now() - this.lastCameraMove < 120 || this.camera.dragArmed;
+    this.quality.tick(dt, moving);
     this.frames++;
     this.fpsTime += dt;
     if (this.fpsTime < 1) return;
-    const fps = this.frames / this.fpsTime;
+    this.stats.fps = this.frames / this.fpsTime;
     this.frames = 0;
     this.fpsTime = 0;
-    this.stats.fps = fps;
     this.emit('stats');
-    // Adaptiv kvalitet: slå dyre effekter fra, hvis maskinen ikke kan følge med.
-    if (document.hidden || performance.now() - this.startTime < 6000) return;
-    this.slowSeconds = fps < 40 ? this.slowSeconds + 1 : 0;
-    if (this.slowSeconds >= 3) {
-      this.slowSeconds = 0;
-      const q = this.viewport.quality;
-      if (q.ssao) {
-        this.viewport.setQuality({ ssao: false });
-        this.toast('SSAO er slået fra for at holde billedfrekvensen oppe');
-      } else if (q.pixelRatio > 1) {
-        this.viewport.setQuality({ pixelRatio: 1 });
-        this.toast('Opløsningen er sænket for at holde billedfrekvensen oppe');
-      }
-      this.emit('settings');
-    }
   }
 
   private updateStats() {

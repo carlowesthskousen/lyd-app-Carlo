@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { maxAnisotropy } from './anisotropy';
 
 /**
  * Procedurale teksturer tegnet på canvas. De er lyse "detaljekort", som
@@ -28,7 +29,7 @@ function make(key: string, size: number, paint: Painter, srgb = true): THREE.Can
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-  tex.anisotropy = 8;
+  tex.anisotropy = maxAnisotropy();
   tex.generateMipmaps = true;
   tex.minFilter = THREE.LinearMipmapLinearFilter;
   cache.set(key, tex);

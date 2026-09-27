@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { maxAnisotropy } from '../render/anisotropy';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
@@ -113,6 +114,9 @@ export class ModelLibrary {
           o.castShadow = true;
           o.receiveShadow = true;
           const mats = Array.isArray(o.material) ? o.material : [o.material];
+          for (const m of mats as THREE.MeshStandardMaterial[]) {
+            for (const t of [m.map, m.normalMap, m.roughnessMap, m.metalnessMap, m.aoMap]) if (t) t.anisotropy = maxAnisotropy();
+          }
           const tint = mats.some((m: THREE.Material) => (names ? names.includes(m.name) : entry.recolorable === true));
           if (tint) o.userData.role = 'tint';
           if (!Array.isArray(o.material)) {
@@ -147,7 +151,7 @@ function loadTexture(url: string, srgb: boolean): Promise<THREE.Texture> {
     p = new THREE.TextureLoader().loadAsync(url).then((t) => {
       t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.anisotropy = 8;
+      t.anisotropy = maxAnisotropy();
       return t;
     });
     textureCache.set(key, p);

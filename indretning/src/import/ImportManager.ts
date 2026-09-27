@@ -12,6 +12,10 @@ export class ImportManager {
   readonly library = new UserLibrary();
   private busy = false;
 
+  get isBusy() {
+    return this.busy;
+  }
+
   constructor(private app: App) {}
 
   /** Indlæser Mine møbler i kataloget (før projektet åbnes, så gemte projekter virker). */

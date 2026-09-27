@@ -242,23 +242,32 @@ export class UI {
       row('Vis gitter altid (G)', check(() => app.gridForced, () => app.toggleGrid())),
       row('Vis rum-mål (m²)', check(() => app.building.showRoomLabels, (v) => app.building.setRoomLabelsVisible(v))),
       h('h4', {}, 'Grafik'),
-      row('SSAO (bløde skygger i hjørner)', check(() => app.viewport.quality.ssao, (v) => app.viewport.setQuality({ ssao: v }))),
+      row(
+        'SSAO (bløde skygger i hjørner)',
+        check(() => app.quality.settings.ssao, (v) => app.quality.update({ ssao: v })),
+      ),
       row(
         'Skyggekvalitet',
         select(
           [['1024', 'Lav'], ['2048', 'Mellem'], ['4096', 'Høj']],
-          () => String(app.viewport.quality.shadowSize),
-          (v) => app.viewport.setQuality({ shadowSize: Number(v) }),
+          () => String(app.quality.settings.shadowSize),
+          (v) => app.quality.update({ shadowSize: Number(v) }),
         ),
       ),
       row(
         'Opløsning',
         select(
-          [[String(Math.min(window.devicePixelRatio, 2)), 'Skarp'], ['1', 'Normal'], ['0.75', 'Hurtig']],
-          () => String(app.viewport.quality.pixelRatio),
-          (v) => app.viewport.setQuality({ pixelRatio: Number(v) }),
+          [
+            ['auto', 'Automatisk (skarp når stille)'],
+            ['sharp', 'Skarp (sænkes aldrig)'],
+            ['normal', 'Normal (1×)'],
+            ['fast', 'Hurtig (0,75×)'],
+          ],
+          () => app.quality.settings.resolution,
+          (v) => app.quality.update({ resolution: v as 'auto' | 'sharp' | 'normal' | 'fast' }),
         ),
       ),
+      h('p.settings-note', {}, 'Automatisk sænker kun opløsningen midlertidigt, mens du flytter kameraet og billedfrekvensen er lav. Står kameraet stille, er billedet altid fuldt skarpt.'),
     );
     return panel;
   }
@@ -320,8 +329,11 @@ export class UI {
     const app = this.app;
     const sync = () => {
       const s = app.stats;
-      el.textContent = `${Math.round(s.fps)} fps · ${s.furniture} møbler · ${s.rooms} rum · ${formatArea(s.area)}`;
+      const q = app.quality;
+      el.textContent = `${Math.round(s.fps)} fps${q.degraded ? ` · ⚠ kvalitet sænket: ${q.note}` : ''} · ${s.furniture} møbler · ${s.rooms} rum · ${formatArea(s.area)}`;
       el.classList.toggle('slow', s.fps < 40);
+      el.classList.toggle('degraded', q.degraded);
+      el.title = q.degraded ? 'Kvaliteten er midlertidigt sænket for at holde billedet flydende. Den går automatisk op igen – og står kameraet stille, er billedet fuldt skarpt. Vælg "Skarp" under ⚙ for aldrig at sænke opløsningen.' : '';
     };
     app.on('stats', sync);
     app.on('doc', sync);

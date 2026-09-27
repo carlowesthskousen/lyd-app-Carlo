@@ -8,6 +8,9 @@ import type { FurnitureView } from '../furniture/FurnitureView';
  * Genererer thumbnails til kataloget ved at rendere hver model i en lille,
  * separat scene. Bruger entry.thumbnail, hvis der er angivet et billede.
  */
+/** Antal thumbnails, der er ved at blive tegnet (tung GPU-opgave – fps-målinger ignoreres imens). */
+export let thumbnailsPending = 0;
+
 export class Thumbnails {
   private renderer: THREE.WebGLRenderer | null = null;
   private scene = new THREE.Scene();
@@ -48,7 +51,14 @@ export class Thumbnails {
     if (!p) {
       p = entry.thumbnail
         ? Promise.resolve(this.catalog.url(entry.thumbnail))
-        : (this.queue = this.queue.then(() => this.render(entry))) as Promise<string>;
+        : (this.queue = this.queue.then(async () => {
+            thumbnailsPending++;
+            try {
+              return await this.render(entry);
+            } finally {
+              thumbnailsPending--;
+            }
+          })) as Promise<string>;
       this.cache.set(entry.id, p);
     }
     return p;
