@@ -34,6 +34,7 @@ export class UI {
     new PropertiesPanel(app, stage.querySelector('#props')!);
     this.buildStats(stage.querySelector('#stats')!);
     new CameraHud(app, stage);
+    this.buildWallSign(stage);
     app.attachUi(stage.querySelector('#hint')!, stage.querySelector('#toasts')!);
     this.buildHelp(document.querySelector('#help')!);
 
@@ -98,13 +99,19 @@ export class UI {
 
     // Vægvisning
     const wallSeg = h('div.segmented.walls', { title: 'Vægvisning (L)' });
-    const wallModes: { m: WallMode; icon: string; t: string }[] = [
-      { m: 'up', icon: 'wallsUp', t: 'Vægge oppe' },
-      { m: 'cutaway', icon: 'wallsCut', t: 'Cutaway – vægge foran sænkes' },
-      { m: 'down', icon: 'wallsDown', t: 'Vægge nede' },
+    wallSeg.append(h('span.seg-label', {}, 'Vægge'));
+    const wallModes: { m: WallMode; icon: string; label: string; t: string }[] = [
+      { m: 'up', icon: 'wallsUp', label: 'Oppe', t: 'Vægge oppe – alle vægge i fuld højde' },
+      { m: 'cutaway', icon: 'wallsCut', label: 'Auto', t: 'Automatisk (cutaway) – vægge, der står mellem dig og rummet, sænkes' },
+      { m: 'down', icon: 'wallsDown', label: 'Nede', t: 'Vægge nede – alle vægge vises som lave stumper' },
     ];
     const wallBtns = wallModes.map((w) => {
-      const b = h('button', { onclick: () => app.setWallMode(w.m), html: icon(w.icon), title: `${w.t} (L)` });
+      const b = h('button', {
+        onclick: () => app.setWallMode(w.m),
+        html: `${icon(w.icon, 18)}<span>${w.label}</span>`,
+        title: `${w.t} (L skifter)`,
+        'aria-label': w.t,
+      });
       wallSeg.append(b);
       return { b, m: w.m };
     });
@@ -256,6 +263,27 @@ export class UI {
     return panel;
   }
 
+  /** Skilt i 3D-visningen, når vægge er sænket – så man ved, hvorfor de er lave. */
+  private buildWallSign(stage: HTMLElement) {
+    const app = this.app;
+    const sign = h('button.wall-sign', { type: 'button', title: 'Hæv alle vægge (L skifter vægvisning)' });
+    sign.addEventListener('click', () => app.setWallMode('up'));
+    stage.append(sign);
+    const sync = () => {
+      const mode = app.store.doc.settings.wallMode;
+      const lowered = app.building.loweredCount;
+      let text = '';
+      if (mode === 'down') text = 'Vægge nede · tryk L eller klik her for at hæve';
+      else if (mode === 'cutaway' && lowered) text = `Automatisk: ${lowered} ${lowered === 1 ? 'væg' : 'vægge'} foran dig er sænket · L skifter`;
+      sign.hidden = !text;
+      sign.innerHTML = `${icon(mode === 'down' ? 'wallsDown' : 'wallsCut', 16)}<span>${text}</span>`;
+    };
+    app.on('walls', sync);
+    app.on('settings', sync);
+    app.on('doc', sync);
+    sync();
+  }
+
   // ------------------------------------------------------------------ toolbar
 
   private buildToolbar(el: HTMLElement) {
@@ -383,7 +411,7 @@ export class UI {
         'Visning',
         [
           ['Shift+klik (maling)', 'Mal hele rummet'],
-          ['L', 'Vægge oppe / cutaway / nede'],
+          ['L', 'Vægge oppe / automatisk (cutaway) / nede'],
           ['M', 'Vis/skjul gitter'],
           ['Cmd/Ctrl+S', 'Gem'],
           ['H', 'Denne oversigt'],

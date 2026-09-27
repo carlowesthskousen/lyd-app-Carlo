@@ -3,7 +3,7 @@ import type { Editor } from '../editor';
 import type { Tool, ToolPointer } from './Tool';
 import { type Overlay, placeWallPreview, wallPreviewMesh } from './overlay';
 import { type Vec2, dist } from '../core/math2d';
-import { addWall } from '../building/wallGraph';
+import { addWall, findWallNear } from '../building/wallGraph';
 import { formatLength } from '../building/BuildingView';
 import { constrainAngle, snapBuildPoint } from './snapping';
 
@@ -20,6 +20,8 @@ export class WallTool implements Tool {
   private downAt: Vec2 | null = null;
   private current: Vec2 | null = null;
   private preview = wallPreviewMesh();
+  /** Vægge tegnet i denne omgang – de står i fuld højde, mens man bygger videre. */
+  private created = new Set<string>();
 
   constructor(private ed: Editor, private overlay: Overlay) {
     overlay.root.add(this.preview);
@@ -31,7 +33,22 @@ export class WallTool implements Tool {
 
   deactivate() {
     this.reset();
+    this.created.clear();
     this.overlay.clear();
+  }
+
+  /** Hold den væg, man peger på, og de nye vægge i fuld højde. */
+  private keepUp(e: ToolPointer) {
+    const keep = this.ed.keepUpWalls;
+    keep.clear();
+    for (const id of this.created) if (this.ed.store.doc.walls[id]) keep.add(id);
+    const hit = this.ed.picker.pick(e.ndc, ['wall']);
+    if (hit) keep.add(hit.id);
+    else {
+      const g = this.ed.picker.groundPoint(e.ndc, 0);
+      const near = g && findWallNear(this.ed.store.doc, { x: g.x, z: g.z }, 0.5);
+      if (near) keep.add(near.wall.id);
+    }
   }
 
   private reset() {
@@ -50,6 +67,7 @@ export class WallTool implements Tool {
   }
 
   pointerMove(e: ToolPointer) {
+    this.keepUp(e);
     const p = this.point(e);
     this.current = p;
     if (!p) return;
@@ -63,6 +81,8 @@ export class WallTool implements Tool {
         `${formatLength(L)} · ${Math.round(deg)}°`,
         new THREE.Vector3((this.start.x + p.x) / 2, s.defaultWallHeight + 0.25, (this.start.z + p.z) / 2),
       );
+      // Væghøjden ved den nye vægs ende
+      this.overlay.label(1, `↕ ${formatLength(s.defaultWallHeight)}`, new THREE.Vector3(p.x, s.defaultWallHeight / 2, p.z), 'measure-label height');
     } else {
       this.overlay.hideLabels();
     }
@@ -99,7 +119,7 @@ export class WallTool implements Tool {
     const s = this.ed.store.doc.settings;
     const a = this.start;
     this.ed.store.transact('Tegn væg', (doc) => {
-      addWall(doc, a, p, { height: s.defaultWallHeight, thickness: s.defaultWallThickness });
+      for (const id of addWall(doc, a, p, { height: s.defaultWallHeight, thickness: s.defaultWallThickness })) this.created.add(id);
     });
     if (this.chainStart && dist(p, this.chainStart) < 0.01) {
       this.ed.toast('Rummet er lukket');

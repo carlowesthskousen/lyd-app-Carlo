@@ -54,8 +54,8 @@ export interface Editor {
   setCursor(css: string): void;
   /** Kaldes når markering/hover skal genberegnes. */
   refreshHighlights(): void;
-  /** Væg der holdes oppe i cutaway (fx mens man sætter en dør i). */
-  keepUpWall: string | null;
+  /** Vægge der står i fuld højde, uanset vægvisning (dem man bygger på lige nu). */
+  keepUpWalls: Set<string>;
   /** Hover-omrids fra værktøjer (blå eller rød). */
   hover: { blue: THREE.Object3D[]; red: THREE.Object3D[] };
 }

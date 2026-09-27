@@ -22,7 +22,7 @@ export class OpeningTool implements Tool {
   constructor(private ed: Editor, private overlay: Overlay) {}
 
   deactivate() {
-    this.ed.keepUpWall = null;
+    this.ed.keepUpWalls.clear();
     this.clearGhost();
     this.overlay.clear();
     this.ed.hover.red = [];
@@ -47,7 +47,7 @@ export class OpeningTool implements Tool {
       if (g && near) hit = { kind: 'wall', id: near.wall.id, point: g };
     }
     if (!hit) {
-      this.ed.keepUpWall = null;
+      this.ed.keepUpWalls.clear();
       this.ed.hover.red = [];
       this.ed.hover.blue = [];
       this.ed.refreshHighlights();
@@ -57,7 +57,8 @@ export class OpeningTool implements Tool {
     const wall = wallId ? doc.walls[wallId] : undefined;
     if (!wall) return;
     // Som i The Sims rejser væggen under musen sig, så man kan se døren.
-    this.ed.keepUpWall = wall.id;
+    this.ed.keepUpWalls.clear();
+    this.ed.keepUpWalls.add(wall.id);
     const style = openingStyle(this.ed.openingStyleId);
     const f = wallFrame(doc, wall);
     let offset = (hit.point.x - f.a.x) * f.d.x + (hit.point.z - f.a.z) * f.d.z;
@@ -127,7 +128,7 @@ export class OpeningTool implements Tool {
   }
 
   pointerLeave() {
-    this.ed.keepUpWall = null;
+    this.ed.keepUpWalls.clear();
     this.clearGhost();
     this.overlay.hideLabels();
   }

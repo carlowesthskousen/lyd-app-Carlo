@@ -17,7 +17,7 @@ export function emptyProject(name = 'Nyt projekt'): ProjectDoc {
     groups: {},
     settings: {
       timeOfDay: 14,
-      wallMode: 'cutaway',
+      wallMode: 'up',
       snapEnabled: true,
       snapStep: 0.1,
       defaultWallHeight: 2.6,

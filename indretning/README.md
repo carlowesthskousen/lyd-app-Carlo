@@ -66,6 +66,13 @@ Dronen accelererer blødt og glider videre, når du slipper tasterne. Den kræng
 - **G** fokuserer på det valgte, **Y** viser oppefra, og **Home** nulstiller.
 - Venstreklik bruger værktøjet.
 
+**Vægvisning:**
+- **Vægge oppe** (standard, og altid når man skifter til Byg): alle vægge i fuld højde.
+- **Automatisk (cutaway):** Vægge, der står mellem kameraet og et rum, sænkes. Det sker aldrig, når kameraet er inde i huset, under 1,5 m eller tættere end 1,5 m på væggen.
+- **Vægge nede:** Alle vægge vises som lave stumper (24 cm). Døre er ægte åbninger i stumpen med svingbuen tegnet på gulvet. Vinduer vises som en lyseblå glasstribe oven på stumpen. Intet af dør- eller vinduesrammen svæver over stumpen.
+- Når vægge er sænket, viser et skilt øverst til højre i 3D-visningen det. Klik på skiltet (eller tryk L) for at hæve dem.
+- Væg-, rum-, dør- og vinduesværktøjet holder den væg, man peger på eller lige har tegnet, i fuld højde. Mens man tegner, vises både længden og højden (↕ 2,60 m) ved den nye væg.
+
 **Markering af flere ting (markeringsværktøjet, V):**
 
 | Input | Handling |
@@ -101,7 +108,7 @@ Flytter du en væg sammen med møbler, følger dens døre og vinduer med. Gruppe
 | P    | Maling & gulve: klik på en vægside eller et gulv. Shift+klik maler hele rummet |
 | X    | Slet: rødt omrids på objektet under musen. Klik sletter, og træk sletter flere |
 | K    | Skift mellem **Byg** og **Indret**                                      |
-| L    | Vægge oppe / cutaway / nede (som i The Sims)                            |
+| L    | Vægvisning: **Vægge oppe** / **Automatisk (cutaway)** / **Vægge nede** (som i The Sims). Knapperne står også i toppen |
 | M    | Vis/skjul gitter                                                        |
 
 **Redigering:** Ctrl+Z / Ctrl+Y (fortryd/gentag alt), Ctrl+D (duplikér), Delete (slet), T / Shift+T (drej 15°), Alt+T eller Alt+scroll (fri rotation), hold Alt (placér uden snap), Ctrl+S (gem nu).

@@ -58,7 +58,8 @@ type AppEvent =
   | 'camera'
   | 'cameraMode'
   | 'speed'
-  | 'showMine';
+  | 'showMine'
+  | 'walls';
 
 export interface Stats {
   fps: number;
@@ -93,7 +94,7 @@ export class App implements Editor {
   placingEntry: CatalogEntry | null = null;
   hover = { blue: [] as THREE.Object3D[], red: [] as THREE.Object3D[] };
   gridForced = false;
-  keepUpWall: string | null = null;
+  readonly keepUpWalls = new Set<string>();
   collisions = new Set<string>();
   stats: Stats = { fps: 60, furniture: 0, area: 0, rooms: 0 };
 
@@ -340,6 +341,7 @@ export class App implements Editor {
   setTool(id: ToolId) {
     if (id === this.toolId && id !== 'furniture') return;
     this.tool.deactivate?.();
+    this.keepUpWalls.clear();
     this.overlay.clear();
     this.hover.blue = [];
     this.hover.red = [];
@@ -358,6 +360,11 @@ export class App implements Editor {
   setMode(mode: Mode) {
     if (this.mode === mode) return;
     this.mode = mode;
+    // I Byg-tilstand står væggene op som standard, så man kan se, hvad man bygger.
+    if (mode === 'build' && this.store.doc.settings.wallMode !== 'up') {
+      this.store.setSettings({ wallMode: 'up' });
+      this.toast('Vægge oppe (Byg) · L skifter vægvisning');
+    }
     this.updateGridVisibility();
     this.emit('mode');
   }
@@ -428,8 +435,7 @@ export class App implements Editor {
       const o = this.furniture.objectFor(ref.id);
       return o ? [o] : [];
     }
-    const o = this.building.objectFor(ref.kind, ref.id);
-    return o ? [o] : [];
+    return this.building.objectsFor(ref.kind, ref.id);
   }
 
   refreshHighlights() {
@@ -614,7 +620,7 @@ export class App implements Editor {
     const i = order.indexOf(this.store.doc.settings.wallMode);
     const next = order[(i + 1) % 3];
     this.setWallMode(next);
-    this.toast({ up: 'Vægge oppe', cutaway: 'Cutaway-vægge', down: 'Vægge nede' }[next]);
+    this.toast({ up: 'Vægge oppe', cutaway: 'Automatisk (cutaway)', down: 'Vægge nede' }[next]);
   }
 
   toggleGrid() {
@@ -876,6 +882,7 @@ export class App implements Editor {
   // ---------------------------------------------------------------- loop
 
   private hudTimer = 0;
+  lastLowered = 0;
   private frames = 0;
   private fpsTime = 0;
   private slowSeconds = 0;
@@ -887,8 +894,13 @@ export class App implements Editor {
     const dt = this.timer.getDelta();
     this.camera.update(dt);
     const s = this.store.doc.settings;
-    if (this.building.updateCutaway(dt, s.wallMode, this.camera.position, this.camera.focusPoint(), this.keepUpWall ?? undefined)) {
+    if (this.building.updateCutaway(dt, s.wallMode, this.camera.position, this.camera.focusPoint(), this.keepUpWalls)) {
       this.viewport.markShadowsDirty();
+    }
+    const lowered = this.building.loweredCount;
+    if (lowered !== this.lastLowered) {
+      this.lastLowered = lowered;
+      this.emit('walls');
     }
     this.furniture.updateLights(this.store.doc, this.camera.position, 1 - this.viewport.lighting.daylight);
     this.tool.update?.(dt);

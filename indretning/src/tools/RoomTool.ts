@@ -46,6 +46,8 @@ export class RoomTool implements Tool {
       const q = pts[(i + 1) % 4];
       placeWallPreview(this.previews[i], p.x, p.z, q.x, q.z, st.defaultWallHeight, st.defaultWallThickness);
     }
+    // Højden på væggene
+    this.overlay.label(1, `↕ ${formatLength(st.defaultWallHeight)}`, new THREE.Vector3(b.x, st.defaultWallHeight / 2, b.z), 'measure-label height');
     const w = Math.abs(b.x - a.x);
     const d = Math.abs(b.z - a.z);
     const t = st.defaultWallThickness;
@@ -79,7 +81,7 @@ export class RoomTool implements Tool {
     const opts = { height: st.defaultWallHeight, thickness: st.defaultWallThickness };
     const pts = [a, { x: b.x, z: a.z }, b, { x: a.x, z: b.z }];
     this.ed.store.transact('Byg rum', (doc) => {
-      for (let i = 0; i < 4; i++) addWall(doc, pts[i], pts[(i + 1) % 4], opts);
+      for (let i = 0; i < 4; i++) for (const id of addWall(doc, pts[i], pts[(i + 1) % 4], opts)) this.ed.keepUpWalls.add(id);
     });
     this.cancel();
   }

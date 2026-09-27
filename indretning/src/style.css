@@ -742,3 +742,32 @@ input[type='color'] {
 @media (max-width: 1100px) {
   .select-filter .seg-label { display: none; }
 }
+
+.measure-label.height { background: #4a5560; }
+
+/* ------------------------------------------------------------ vægvisning */
+.segmented.walls .seg-label { font-size: 11.5px; color: var(--muted); padding: 0 4px 0 6px; align-self: center; }
+.segmented.walls button { gap: 5px; padding: 5px 8px; font-size: 12.5px; }
+.wall-sign {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 46%;
+  padding: 7px 12px;
+  border: 1px solid #e3cf9a;
+  border-radius: 999px;
+  background: #fff6dd;
+  color: #6b5317;
+  font-size: 12.5px;
+  font-weight: 500;
+  box-shadow: var(--shadow);
+  z-index: 3;
+  text-align: left;
+}
+.wall-sign:hover { background: #ffefc4; }
+@media (max-width: 1250px) {
+  .segmented.walls button span, .segmented.walls .seg-label, .select-filter .seg-label { display: none; }
+}
