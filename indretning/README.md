@@ -66,6 +66,26 @@ Dronen accelererer blødt og glider videre, når du slipper tasterne. Den kræng
 - **G** fokuserer på det valgte, **Y** viser oppefra, og **Home** nulstiller.
 - Venstreklik bruger værktøjet.
 
+**Markering af flere ting (markeringsværktøjet, V):**
+
+| Input | Handling |
+| ----- | -------- |
+| Klik | Markér ét objekt. Er det i en gruppe, markeres hele gruppen |
+| Shift+klik | Tilføj/fjern et objekt. Dronen dykker ikke, når Shift bruges til et klik |
+| Venstre-træk på tom plads | Markeringsboks: alt med midtpunkt inde i boksen bliver markeret. Shift+træk tilføjer |
+| Dobbeltklik på en gruppe | Markér kun det ene objekt i gruppen |
+| Cmd/Ctrl+A · Esc | Markér alt · fjern markering |
+| "Markér: Kun møbler / Alt" (toppen) | Vælg om vægge, døre og vinduer også kan markeres |
+| Træk i et markeret objekt | Flyt hele bunken. Den indbyrdes placering bevares, og snap og kollisionsvisning virker |
+| Piletaster · Alt+pile | Skub bunken 1 cm · 10 cm (i kameraets retning, låst til gitteret) |
+| R / T (Shift = modsat, Alt = 1°) | Drej bunken 15° om dens fælles midtpunkt |
+| Delete / Backspace | Slet alt markeret |
+| Cmd/Ctrl+D | Duplikér bunken. Kopien følger musen, til du klikker den på plads (Esc annullerer) |
+| Cmd/Ctrl+C · Cmd/Ctrl+V | Kopiér og indsæt. Virker også mellem projekter |
+| Cmd/Ctrl+G · Cmd/Ctrl+Shift+G | Gem markeringen som gruppe (navnet foreslås, fx "Spisebord 180 med 6 × spisestol") · opløs gruppen |
+
+Flytter du en væg sammen med møbler, følger dens døre og vinduer med. Grupper gemmes i projektet. Hver handling på bunken er én fortryd (Cmd/Ctrl+Z). På Mac bruges Cmd til alle genveje, og Ctrl+klik bruges ikke til noget, fordi det er højreklik. I markeringsværktøjet ligger "kig rundt" på højreklik-træk, fordi venstre-træk tegner markeringsboksen. Når noget er markeret, drejer R markeringen i stedet for at vippe kameraet, og piletasterne skubber markeringen i stedet for at flyve.
+
 **Controller (gamepad):** Venstre stick bevæger, højre stick kigger og RT/LT er op/ned. RB giver boost, LB præcision, og Y/△ skifter mellem Drone og Byg.
 
 **Indstillinger (⚙):** Kameratilstand, musefølsomhed, invertér Y, farten i begge tilstande, glid (fra stram til flydende), krængning og væg-kollision. Indstillingerne gemmes i browseren. HUD'et øverst til venstre viser tilstand, højde over gulv, fart og en tasteoversigt, som kan skjules.

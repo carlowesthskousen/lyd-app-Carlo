@@ -95,6 +95,7 @@ export function migrate(raw: unknown): ProjectDoc {
     openings: d.openings ?? {},
     rooms: d.rooms ?? [],
     furniture: d.furniture ?? {},
+    groups: d.groups ?? {},
     settings: { ...base.settings, ...(d.settings ?? {}) },
   } as ProjectDoc;
   // Fjern dinglende referencer.

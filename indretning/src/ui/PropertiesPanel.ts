@@ -8,6 +8,7 @@ import { openingFits, wallFrame } from '../building/wallGraph';
 import type { FloorMaterial, WallMaterial } from '../state/types';
 import { setRoomFloor } from '../tools/PaintTool';
 import { ROT_STEP } from '../tools/furniturePlacement';
+import { exactGroup } from '../selection/selectionOps';
 
 /** Egenskabspanel for det valgte objekt (Sims-agtigt infokort nederst til venstre). */
 export class PropertiesPanel {
@@ -20,6 +21,7 @@ export class PropertiesPanel {
   }
 
   private render(force: boolean) {
+    if (this.app.selected.length > 1) return this.renderMulti(force);
     const sel = this.app.selection;
     const doc = this.app.store.doc;
     // Undgå at genopbygge (og miste fokus i felter) mens man trækker.
@@ -37,6 +39,54 @@ export class PropertiesPanel {
     else if (sel.kind === 'wall' && doc.walls[sel.id]) this.wall(sel.id);
     else if (sel.kind === 'opening' && doc.openings[sel.id]) this.opening(sel.id);
     else if (sel.kind === 'floor') this.floor(sel.id);
+  }
+
+  /** Panel for flere markerede objekter: "5 markeret" + handlinger på hele bunken. */
+  private renderMulti(force: boolean) {
+    const app = this.app;
+    const doc = app.store.doc;
+    const refs = app.selected;
+    const group = exactGroup(doc, refs);
+    const key = `multi:${refs.map((r) => r.id).join(',')}:${group?.name ?? ''}:${app.collisions.size}`;
+    if (!force && key === this.key) return;
+    if (!force && document.activeElement && this.el.contains(document.activeElement)) return;
+    this.key = key;
+    clear(this.el);
+    this.el.classList.add('open');
+    const count = (k: string) => refs.filter((r) => r.kind === k).length;
+    const parts = [
+      [count('furniture'), 'møbel', 'møbler'],
+      [count('wall'), 'væg', 'vægge'],
+      [count('opening'), 'dør/vindue', 'døre/vinduer'],
+    ]
+      .filter(([n]) => (n as number) > 0)
+      .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
+      .join(' · ');
+    this.el.append(
+      h(
+        'div.props-head',
+        {},
+        h('div', {}, h('h3', {}, `${refs.length} markeret`), h('span.muted', {}, parts)),
+        h('button.icon-btn', { html: icon('close', 18), onclick: () => app.select(null), 'aria-label': 'Fjern markering' }),
+      ),
+    );
+    if (group) {
+      const name = h('input', { type: 'text', value: group.name, id: 'group-name', 'aria-label': 'Gruppens navn' }) as HTMLInputElement;
+      name.addEventListener('change', () => app.renameGroup(group.id, name.value));
+      this.el.append(h('label.props-row', {}, h('span', {}, 'Gruppe'), name));
+    }
+    const colliding = refs.filter((r) => r.kind === 'furniture' && app.collisions.has(r.id)).length;
+    if (colliding) this.el.append(h('div.props-warn', {}, `${colliding} af møblerne overlapper noget`));
+    this.el.append(
+      this.actions(
+        this.btn('trash', 'Slet', () => app.deleteSelection(), 'danger'),
+        this.btn('copy', 'Duplikér', () => app.duplicateSelection()),
+        this.btn('rotate', 'Rotér 15°', () => app.rotateSelection(ROT_STEP)),
+        group ? this.btn('close', 'Opløs gruppe', () => app.ungroupSelection()) : this.btn('plus', 'Grupér', () => app.groupSelection()),
+        this.btn('focus', 'Fokus', () => app.focusSelection()),
+      ),
+      h('p.props-tip', {}, 'Træk i et markeret objekt for at flytte det hele · pile skubber 1 cm (Alt: 10 cm) · Cmd/Ctrl+C/V kopierer'),
+    );
   }
 
   private dataFor() {

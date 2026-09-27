@@ -90,6 +90,13 @@ export class FlyCamera {
   /** Kaldes når flyvehastigheden ændres (til HUD-visning). */
   onSpeedChange?: (speed: number) => void;
   collide?: Collide;
+  /** Returnerer true for taster, appen selv bruger lige nu (fx R og pile, når noget er markeret). */
+  keyFilter?: (code: string) => boolean;
+  /** Hvornår Shift blev trykket, og om den siden er brugt sammen med et klik. */
+  private shiftDownAt = 0;
+  private shiftClicked = false;
+  /** Musen er flyttet (uden knapper) mens Shift er nede → man er på vej til at Shift+klikke. */
+  private shiftPointerMoved = false;
 
   constructor(
     readonly camera: THREE.PerspectiveCamera,
@@ -105,7 +112,10 @@ export class FlyCamera {
     dom.addEventListener('wheel', this.onWheel, { passive: false });
     dom.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('keydown', this.onKeyDown);
-    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
+    window.addEventListener('keyup', (e) => {
+      this.keys.delete(e.code);
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.shiftClicked = this.shiftPointerMoved = false;
+    });
     window.addEventListener('blur', () => this.keys.clear());
     document.addEventListener('pointerlockchange', () => {
       if (!document.pointerLockElement && this.drag?.locked) this.drag.locked = false;
@@ -181,6 +191,12 @@ export class FlyCamera {
       this.keys.add(e.code);
       return;
     }
+    if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !e.repeat) {
+      this.shiftDownAt = performance.now();
+      this.shiftClicked = false;
+      this.shiftPointerMoved = false;
+    }
+    if (this.keyFilter?.(e.code)) return;
     if (e.metaKey) return;
     if (e.ctrlKey) {
       // Ctrl+D (duplikér) og Ctrl+S (gem) er genveje, når man ikke allerede flyver.
@@ -253,7 +269,10 @@ export class FlyCamera {
 
   private onPointerMove = (e: PointerEvent) => {
     const d = this.drag;
-    if (!d) return;
+    if (!d) {
+      if (e.shiftKey && e.buttons === 0 && (e.movementX || e.movementY)) this.shiftPointerMoved = true;
+      return;
+    }
     const dx = e.movementX ?? e.clientX - d.x;
     const dy = e.movementY ?? e.clientY - d.y;
     // Nogle browsere sender et urealistisk spring lige efter pointer lock – ignorér det.
@@ -333,6 +352,27 @@ export class FlyCamera {
 
   // ------------------------------------------------------------------ opdatering
 
+  /**
+   * Kaldes ved hvert klik i 3D-visningen. Bruges Shift sammen med et klik
+   * (Shift+klik = tilføj til markering), dykker dronen ikke, før Shift slippes.
+   */
+  noteClick(shift: boolean) {
+    if (shift) this.shiftClicked = true;
+  }
+
+  /**
+   * Shift som "dyk" (drone). Shift bruges også til Shift+klik, så dronen dykker kun når:
+   * man samtidig flyver (WASD/Space) eller kigger rundt – eller holder Shift uden
+   * at røre musen i 150 ms. Er Shift brugt til et klik, dykkes der ikke, før den slippes.
+   */
+  private shiftDescends() {
+    const held = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
+    if (!held || this.shiftClicked) return false;
+    const flying = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].some((c) => this.keys.has(c));
+    if (flying || this.drag?.armed) return true;
+    return !this.shiftPointerMoved && performance.now() - this.shiftDownAt > 150;
+  }
+
   /** Er der en bevægelsestast nede (bruges til at skelne Ctrl-boost fra Ctrl-genveje)? */
   movementHeld(except?: string) {
     return MOVEMENT_KEYS.some((c) => c !== except && this.keys.has(c));
@@ -348,7 +388,7 @@ export class FlyCamera {
     const alt = on('AltLeft', 'AltRight');
     // Drone: Space op, Shift ned, Ctrl boost, Alt præcision.
     // Byg:   Space op, C ned, Shift boost (Shift bruges også af værktøjerne).
-    const down = on('KeyC') || (drone && shift) ? 1 : 0;
+    const down = on('KeyC') || (drone && this.shiftDescends()) ? 1 : 0;
     const boost = drone ? this.ctrlHeld : shift === 1;
     return {
       forward: THREE.MathUtils.clamp(on('KeyW', 'ArrowUp') - on('KeyS', 'ArrowDown') - pad.moveY, -1, 1),

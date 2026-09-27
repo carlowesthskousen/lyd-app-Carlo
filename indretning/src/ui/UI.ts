@@ -84,6 +84,18 @@ export class UI {
       saved.textContent = `Gemt ${t.getHours().toString().padStart(2, '0')}:${t.getMinutes().toString().padStart(2, '0')}`;
     });
 
+    // Markeringsfilter
+    const filterSeg = h('div.segmented.small.select-filter', { title: 'Hvad markeringsboks og Cmd/Ctrl+A må markere' });
+    const fAll = h('button', { onclick: () => app.setSelectionFilter('all') }, 'Alt');
+    const fFurn = h('button', { onclick: () => app.setSelectionFilter('furniture') }, 'Kun møbler');
+    filterSeg.append(h('span.seg-label', {}, 'Markér'), fFurn, fAll);
+    const syncFilter = () => {
+      fAll.classList.toggle('active', app.selectionFilter === 'all');
+      fFurn.classList.toggle('active', app.selectionFilter === 'furniture');
+    };
+    app.on('selection', syncFilter);
+    syncFilter();
+
     // Vægvisning
     const wallSeg = h('div.segmented.walls', { title: 'Vægvisning (L)' });
     const wallModes: { m: WallMode; icon: string; t: string }[] = [
@@ -140,6 +152,7 @@ export class UI {
       redo,
       saved,
       h('div.spacer'),
+      filterSeg,
       wallSeg,
       timeBox,
       h('div.sep'),
@@ -317,7 +330,7 @@ export class UI {
         'Begge kameraer',
         [
           ['Q · E', 'Drej venstre · højre'],
-          ['R · F', 'Kig op · ned'],
+          ['R · F', 'Kig op · ned (R drejer markeringen, når noget er markeret)'],
           ['Tab', 'Skift Drone / Byg'],
           ['[ · ]', 'Langsommere · hurtigere'],
           ['G', 'Fokusér på valgt'],
@@ -339,13 +352,28 @@ export class UI {
         ],
       ],
       [
+        'Markering',
+        [
+          ['Klik', 'Markér (hele gruppen)'],
+          ['Shift+klik', 'Tilføj / fjern'],
+          ['Træk på tom plads', 'Markeringsboks (Shift: tilføj)'],
+          ['Dobbeltklik', 'Ét objekt i en gruppe'],
+          ['Cmd/Ctrl+A · Esc', 'Markér alt · fjern markering'],
+          ['Træk i markeringen', 'Flyt hele bunken'],
+          ['Pile · Alt+pile', 'Skub 1 cm · 10 cm'],
+          ['R / T · Shift', 'Drej 15° · modsat'],
+          ['Alt+R · Alt+scroll', 'Drej frit'],
+        ],
+      ],
+      [
         'Redigering',
         [
-          ['Ctrl+Z · Ctrl+Y', 'Fortryd · gentag'],
-          ['Ctrl+D', 'Duplikér'],
-          ['Delete', 'Slet valgt'],
-          ['T · Shift+T', 'Drej møbel 15°'],
-          ['Alt+T · Alt+scroll', 'Drej møbel frit'],
+          ['Cmd/Ctrl+Z · Y', 'Fortryd · gentag'],
+          ['Cmd/Ctrl+D', 'Duplikér (følger musen)'],
+          ['Cmd/Ctrl+C · V', 'Kopiér · indsæt'],
+          ['Cmd/Ctrl+G', 'Gem som gruppe'],
+          ['Cmd/Ctrl+Shift+G', 'Opløs gruppe'],
+          ['Delete / Backspace', 'Slet markeret'],
           ['T (døre)', 'Spejlvend dør'],
           ['Alt (hold)', 'Placér uden snap'],
           ['Shift (væg)', 'Lås vinkel til 45°'],
@@ -357,7 +385,7 @@ export class UI {
           ['Shift+klik (maling)', 'Mal hele rummet'],
           ['L', 'Vægge oppe / cutaway / nede'],
           ['M', 'Vis/skjul gitter'],
-          ['Ctrl+S', 'Gem'],
+          ['Cmd/Ctrl+S', 'Gem'],
           ['H', 'Denne oversigt'],
         ],
       ],

@@ -4,9 +4,14 @@ import { removeWall } from '../building/wallGraph';
 import { roomStyleFor } from '../building/BuildingView';
 import { uid } from '../state/ids';
 import { DEFAULT_FLOOR_MATERIAL } from '../state/defaults';
+import { removeFromGroups } from '../selection/selectionOps';
 
 /** Sletter elementer. En væg tager sine døre og vinduer med. Et gulv skjules. */
 export function deleteRefs(doc: ProjectDoc, refs: PickRef[], rooms: Room[]) {
+  // Døre/vinduer i slettede vægge forsvinder også fra grupper
+  const gone: PickRef[] = [...refs];
+  for (const r of refs) if (r.kind === 'wall') for (const o of Object.values(doc.openings)) if (o.wallId === r.id) gone.push({ kind: 'opening', id: o.id });
+  removeFromGroups(doc, gone);
   for (const ref of refs) {
     switch (ref.kind) {
       case 'furniture':

@@ -29,6 +29,18 @@ import { demoProject } from './persistence/demo';
 import { WALL_PRESETS } from './building/buildCatalog';
 import { sweepSphere } from './camera/collision';
 import { ImportManager } from './import/ImportManager';
+import {
+  type Clip,
+  copySelection,
+  createGroup,
+  isClip,
+  sameRef,
+  suggestGroupName,
+  ungroup,
+  uniqueRefs,
+} from './selection/selectionOps';
+
+const CLIP_KEY = 'indretning:udklip';
 
 export type Mode = 'build' | 'buy';
 type AppEvent =
@@ -70,7 +82,10 @@ export class App implements Editor {
   /** Katalogvarer, der er ændret siden sidste visning (thumbnails skal laves igen). */
   readonly changedEntries = new Set<string>();
 
-  selection: PickRef | null = null;
+  /** Alle markerede objekter (multi-markering). */
+  selected: PickRef[] = [];
+  /** Markeringsfilter: kun møbler eller alt (møbler, vægge, døre, vinduer). */
+  selectionFilter: 'furniture' | 'all' = 'all';
   toolId: ToolId = 'select';
   mode: Mode = 'buy';
   openingStyleId = 'door-90';
@@ -112,6 +127,11 @@ export class App implements Editor {
     };
     this.camera.onChange = () => this.scheduleCameraSave();
     this.camera.collide = (from, delta) => this.collideWalls(from, delta);
+    // R og piletaster styrer markeringen, når noget er markeret i markeringsværktøjet
+    this.camera.keyFilter = (code) =>
+      this.toolId === 'select' &&
+      (this.selected.some((r) => r.kind !== 'floor') || (this.tools.select as SelectTool).isFloating) &&
+      (code === 'KeyR' || code.startsWith('Arrow'));
     this.camera.onModeChange = (mode) => {
       this.toast(mode === 'drone' ? 'Drone-tilstand – træk med musen for at kigge rundt' : 'Byg-tilstand');
       this.emit('cameraMode');
@@ -196,7 +216,8 @@ export class App implements Editor {
     if (reason !== 'settings') {
       this.collisions = findCollisions(doc, (id) => this.catalog.get(id));
     }
-    if (this.selection && !this.exists(this.selection)) this.select(null);
+    const alive = this.selected.filter((r) => this.exists(r));
+    if (alive.length !== this.selected.length) this.setSelection(alive);
     if (buildingChanged) this.viewport.lighting.fitTo(this.sceneBounds());
     this.viewport.lighting.setTime(doc.settings.timeOfDay);
     this.updateGridVisibility();
@@ -355,13 +376,51 @@ export class App implements Editor {
     else this.setTool('select');
   }
 
+  /** Den markerede genstand, hvis præcis én er markeret (til egenskabspanelet). */
+  get selection(): PickRef | null {
+    return this.selected.length === 1 ? this.selected[0] : null;
+  }
+
   select(ref: PickRef | null) {
-    const same = ref?.kind === this.selection?.kind && ref?.id === this.selection?.id;
-    this.selection = ref;
+    this.setSelection(ref ? [ref] : []);
+  }
+
+  setSelection(refs: PickRef[]) {
+    const next = uniqueRefs(refs);
+    const same = next.length === this.selected.length && next.every((r, i) => sameRef(r, this.selected[i]));
+    this.selected = next;
     if (!same) {
       this.refreshHighlights();
       this.emit('selection');
     }
+  }
+
+  isSelected(ref: PickRef) {
+    return this.selected.some((r) => sameRef(r, ref));
+  }
+
+  /** Tjekker om en type må markeres med det aktuelle filter. */
+  selectable(kind: PickRef['kind']) {
+    if (kind === 'floor') return false;
+    return this.selectionFilter === 'all' || kind === 'furniture';
+  }
+
+  setSelectionFilter(f: 'furniture' | 'all') {
+    this.selectionFilter = f;
+    if (f === 'furniture') this.setSelection(this.selected.filter((r) => r.kind === 'furniture'));
+    this.emit('selection');
+  }
+
+  selectAll() {
+    const d = this.store.doc;
+    const refs: PickRef[] = Object.keys(d.furniture).map((id) => ({ kind: 'furniture', id }));
+    if (this.selectionFilter === 'all') {
+      refs.push(...Object.keys(d.walls).map((id) => ({ kind: 'wall' as const, id })));
+      refs.push(...Object.keys(d.openings).map((id) => ({ kind: 'opening' as const, id })));
+    }
+    if (this.toolId !== 'select') this.setTool('select');
+    this.setSelection(refs);
+    this.toast(`${refs.length} markeret`);
   }
 
   objectsFor(ref: PickRef): THREE.Object3D[] {
@@ -375,7 +434,7 @@ export class App implements Editor {
 
   refreshHighlights() {
     const blue = [...this.hover.blue];
-    if (this.selection) blue.push(...this.objectsFor(this.selection));
+    for (const r of this.selected) blue.push(...this.objectsFor(r));
     const red = [...this.hover.red];
     if (this.toolId !== 'delete') {
       for (const id of this.collisions) {
@@ -388,16 +447,28 @@ export class App implements Editor {
   }
 
   deleteSelection() {
-    const sel = this.selection;
-    if (!sel) return;
-    for (const obj of this.objectsFor(sel)) animateOut(this.viewport.scene, obj);
-    this.store.transact('Slet', (doc) => deleteRefs(doc, [sel], this.building.rooms));
+    const refs = [...this.selected];
+    if (!refs.length) return;
+    for (const r of refs) for (const obj of this.objectsFor(r)) animateOut(this.viewport.scene, obj);
+    this.store.transact(refs.length === 1 ? 'Slet' : `Slet ${refs.length} objekter`, (doc) => deleteRefs(doc, refs, this.building.rooms));
     this.select(null);
   }
 
+  /**
+   * Cmd/Ctrl+D: én dør/ét vindue duplikeres langs væggen; alt andet duplikeres
+   * som en bunke, der følger musen, til man klikker den på plads.
+   */
   duplicateSelection() {
-    const sel = this.selection;
-    if (!sel || (sel.kind !== 'furniture' && sel.kind !== 'opening')) return;
+    const refs = this.selected.filter((r) => r.kind !== 'floor');
+    if (!refs.length) return;
+    if (refs.length === 1 && refs[0].kind === 'opening') return this.duplicateOpening(refs[0]);
+    const clip = copySelection(this.store.doc, refs);
+    if (!clip.furniture.length && !clip.walls.length) return;
+    this.setTool('select');
+    (this.tools.select as SelectTool).startFloating(clip, 'Duplikér');
+  }
+
+  private duplicateOpening(sel: PickRef) {
     let created: PickRef | null = null;
     this.store.transact('Duplikér', (doc) => {
       created = duplicateRef(doc, sel);
@@ -414,6 +485,75 @@ export class App implements Editor {
     });
     if (created) this.select(created);
     else this.toast('Der er ikke plads til en kopi');
+  }
+
+  /** Cmd/Ctrl+C: kopiér til browserens udklipsholder (virker mellem projekter). */
+  copySelection() {
+    const refs = this.selected.filter((r) => r.kind !== 'floor');
+    if (!refs.length) return;
+    const clip = copySelection(this.store.doc, refs);
+    try {
+      localStorage.setItem(CLIP_KEY, JSON.stringify(clip));
+    } catch {
+      this.memoryClip = clip;
+    }
+    this.memoryClip = clip;
+    const n = clip.furniture.length + clip.walls.length;
+    this.toast(`Kopieret: ${n} objekt${n === 1 ? '' : 'er'}${clip.openings.length ? ` (+${clip.openings.length} døre/vinduer)` : ''}`);
+  }
+
+  /** Cmd/Ctrl+V: indsæt; kopien følger musen, til man klikker den på plads. */
+  paste() {
+    let clip: Clip | null = null;
+    try {
+      const raw = localStorage.getItem(CLIP_KEY);
+      if (raw) clip = JSON.parse(raw);
+    } catch {
+      /* brug hukommelsen */
+    }
+    clip ??= this.memoryClip;
+    if (!clip || !isClip(clip)) {
+      this.toast('Udklipsholderen er tom – markér noget og tryk Cmd/Ctrl+C');
+      return;
+    }
+    const missing = clip.furniture.filter((f) => !this.catalog.get(f.catalogId)).length;
+    if (missing) this.toast(`${missing} møbler findes ikke i dette katalog og vises som kasser`);
+    this.setTool('select');
+    (this.tools.select as SelectTool).startFloating(clip, 'Indsæt');
+  }
+
+  private memoryClip: Clip | null = null;
+
+  /** Cmd/Ctrl+G: gem markeringen som en gruppe. */
+  groupSelection() {
+    const refs = this.selected.filter((r) => r.kind !== 'floor');
+    if (refs.length < 2) {
+      this.toast('Markér mindst to ting for at gruppere');
+      return;
+    }
+    const name = suggestGroupName(this.store.doc, refs, (id) => this.catalog.get(id)?.name);
+    this.store.transact('Gruppér', (doc) => createGroup(doc, refs, name));
+    this.toast(`Gruppe: ${name}`);
+    this.emit('selection');
+  }
+
+  /** Cmd/Ctrl+Shift+G: opløs gruppen. */
+  ungroupSelection() {
+    let n = 0;
+    this.store.transact('Opløs gruppe', (doc) => (n = ungroup(doc, this.selected)));
+    this.toast(n ? 'Gruppen er opløst' : 'Markeringen er ikke en gruppe');
+    this.emit('selection');
+  }
+
+  renameGroup(id: string, name: string) {
+    this.store.transact('Omdøb gruppe', (doc) => {
+      const g = doc.groups?.[id];
+      if (g) g.name = name.trim() || g.name;
+    });
+  }
+
+  rotateSelection(angle: number) {
+    (this.tools.select as SelectTool).rotateSelection(angle);
   }
 
   updateItem(id: string, patch: Partial<ProjectDoc['furniture'][string]>, label: string) {
@@ -446,7 +586,7 @@ export class App implements Editor {
   }
 
   focusSelection() {
-    const objs = this.selection ? this.objectsFor(this.selection) : [];
+    const objs = this.selected.flatMap((r) => this.objectsFor(r));
     const box = new THREE.Box3();
     for (const o of objs) box.expandByObject(o);
     if (box.isEmpty()) box.copy(this.sceneBounds());
@@ -552,6 +692,8 @@ export class App implements Editor {
      * (→ værktøjet) eller et træk over 5 px (→ kig rundt, eller orbit med Alt).
      */
     let pendingClick: ToolPointer | null = null;
+    // Registrér Shift+klik (alle knapper), så dronen ikke dykker ved Shift+klik
+    el.addEventListener('pointerdown', (e) => this.camera.noteClick(e.shiftKey), { capture: true });
     el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       if ((e.target as HTMLElement).closest('.viewport-labels > *')) return;
@@ -632,9 +774,10 @@ export class App implements Editor {
       const k = e.key.toLowerCase();
       // Drone: Ctrl er boost. Ctrl+W/A/S/D med en bevægelsestast nede er flyvning,
       // ikke genveje (Ctrl+D/S virker stadig, når dronen står stille).
-      if (this.camera.mode === 'drone' && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
+      // På Mac er Cmd genvejstasten og Ctrl er boost – de kolliderer ikke.
+      if (this.camera.mode === 'drone' && e.ctrlKey && !e.metaKey && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
         const flying = this.camera.movementHeld(e.code) || e.repeat;
-        if (flying || e.code === 'KeyW' || e.code === 'KeyA') {
+        if (flying || e.code === 'KeyW') {
           e.preventDefault();
           return;
         }
@@ -642,6 +785,11 @@ export class App implements Editor {
       if (k === 'z' && !e.shiftKey) this.undo();
       else if (k === 'y' || (k === 'z' && e.shiftKey)) this.redo();
       else if (k === 'd') this.duplicateSelection();
+      else if (k === 'a') this.selectAll();
+      else if (k === 'c') this.copySelection();
+      else if (k === 'v') this.paste();
+      else if (k === 'g' && e.shiftKey) this.ungroupSelection();
+      else if (k === 'g') this.groupSelection();
       else if (k === 's') {
         this.saveNow();
         this.toast('Gemt');

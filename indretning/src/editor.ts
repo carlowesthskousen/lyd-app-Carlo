@@ -24,8 +24,17 @@ export interface Editor {
   catalog: Catalog;
   library: ModelLibrary;
 
-  selection: PickRef | null;
+  /** Den markerede genstand, når præcis én er markeret. */
+  readonly selection: PickRef | null;
+  /** Alle markerede objekter. */
+  selected: PickRef[];
   select(ref: PickRef | null): void;
+  setSelection(refs: PickRef[]): void;
+  isSelected(ref: PickRef): boolean;
+  /** Må denne type markeres (filteret "Kun møbler" / "Alt")? */
+  selectable(kind: PickRef['kind']): boolean;
+  /** Elementet som værktøjer kan tegne markeringsboksen i. */
+  readonly host: HTMLElement;
   /** 3D-objekt(er) for et element, fx til omrids. */
   objectsFor(ref: PickRef): THREE.Object3D[];
 

@@ -96,6 +96,13 @@ export interface ProjectSettings {
   defaultWallThickness: number;
 }
 
+/** En gemt gruppe (fx "spisebord med 6 stole"): ét klik markerer alle medlemmer. */
+export interface Group {
+  id: string;
+  name: string;
+  members: PickRef[];
+}
+
 export interface ProjectDoc {
   version: 1;
   id: string;
@@ -105,6 +112,7 @@ export interface ProjectDoc {
   openings: Record<string, Opening>;
   rooms: RoomStyle[];
   furniture: Record<string, FurnitureItem>;
+  groups?: Record<string, Group>;
   settings: ProjectSettings;
   camera?: CameraPose;
   updatedAt: number;

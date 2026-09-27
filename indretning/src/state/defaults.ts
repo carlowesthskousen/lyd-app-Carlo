@@ -14,6 +14,7 @@ export function emptyProject(name = 'Nyt projekt'): ProjectDoc {
     openings: {},
     rooms: [],
     furniture: {},
+    groups: {},
     settings: {
       timeOfDay: 14,
       wallMode: 'cutaway',
