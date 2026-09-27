@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { maxAnisotropy } from '../render/anisotropy';
 import { fabricTexture, TEXTURE_SIZE_M } from '../render/textures';
+import { opalMaterial } from '../render/materials';
 
 /**
  * Materiale-forudindstillinger til importerede møbler (og manifestets "materials").
@@ -21,8 +22,8 @@ export interface MaterialPreset {
   metalness?: number;
   normalScale?: number;
   opacity?: number;
-  /** Ekstra lys, fx opal-glas i lampeskærme. */
-  emissive?: string;
+  /** Opalglas: MeshPhysicalMaterial med transmission, gløder når lampen er tændt. */
+  opal?: boolean;
   fabric?: boolean;
 }
 
@@ -35,9 +36,9 @@ export const MATERIAL_PRESETS: MaterialPreset[] = [
   { id: 'naturlaeder', name: 'Naturlæder', swatch: '#a86e45', textures: 'laeder', textureSize: 0.2, color: '#b67a4c', roughness: 1, normalScale: 0.5 },
   { id: 'sort-laeder', name: 'Sort læder', swatch: '#232122', textures: 'laeder', textureSize: 0.2, color: '#2a2728', roughness: 0.9, normalScale: 0.5 },
   { id: 'stof', name: 'Stof (uld)', swatch: '#b9b3a6', color: '#b9b3a6', roughness: 0.95, fabric: true },
-  { id: 'messing', name: 'Messing', swatch: '#c8a14a', color: '#d4ae5a', roughness: 0.28, metalness: 1 },
+  { id: 'messing', name: 'Messing', swatch: '#c9a45c', color: '#c9a45c', roughness: 0.3, metalness: 1 },
   { id: 'krom', name: 'Krom', swatch: '#d9dcdf', color: '#eceef0', roughness: 0.07, metalness: 1 },
-  { id: 'opal-glas', name: 'Opal glas', swatch: '#f4f3ef', color: '#f7f6f2', roughness: 0.35, opacity: 0.92, emissive: '#ffffff' },
+  { id: 'opal-glas', name: 'Opal glas', swatch: '#f4f3ef', color: '#f6f2ea', roughness: 0.55, opal: true },
   { id: 'klart-glas', name: 'Klart glas', swatch: '#dfeef5', color: '#e8f3f7', roughness: 0.04, opacity: 0.22 },
 ];
 
@@ -74,6 +75,11 @@ export async function createPresetMaterial(
 ): Promise<{ material: THREE.MeshStandardMaterial; textured: boolean; textureSize: number } | null> {
   const p = presetById(id);
   if (!p) return null;
+  if (p.opal) {
+    const o = opalMaterial(p.color);
+    o.name = name;
+    return { material: o, textured: false, textureSize: 0.5 };
+  }
   const m = new THREE.MeshStandardMaterial({
     name,
     color: p.color,
@@ -84,10 +90,6 @@ export async function createPresetMaterial(
     m.transparent = true;
     m.opacity = p.opacity;
     m.depthWrite = p.opacity > 0.5;
-  }
-  if (p.emissive) {
-    m.emissive.set(p.emissive);
-    m.emissiveIntensity = 0.15;
   }
   let textured = false;
   let textureSize = p.textureSize ?? 0.5;

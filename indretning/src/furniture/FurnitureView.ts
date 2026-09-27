@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type { FurnitureItem, ProjectDoc } from '../state/types';
 import { type Catalog, type CatalogEntry } from './catalog';
 import type { ModelLibrary } from './modelLibrary';
-import { finishMaterial } from '../render/materials';
+import { applyOpalShader, finishMaterial } from '../render/materials';
+import { createContactShadow } from '../render/contactShadows';
 
 const MAX_LIGHTS = 8;
 
@@ -13,7 +14,14 @@ export interface Instance {
   catalogId: string;
   appearance: string;
   shades: THREE.MeshStandardMaterial[];
+  /** Blød kontaktskygge under møblet (ligger i sin egen gruppe, ikke i omridset). */
+  blob: THREE.Mesh | null;
 }
+
+/** Skærmenes glød, når lampen er tændt (HDR – over bloom-tærsklen om aftenen). */
+const GLOW = 5;
+/** Om dagen gløder en tændt skærm kun svagt. */
+const glowAt = (night: number) => GLOW * (0.12 + 0.88 * night);
 
 /**
  * Afleder møbel-objekter fra dokumentet. Modeller deles mellem instanser;
@@ -23,8 +31,12 @@ export interface Instance {
 export class FurnitureView {
   readonly root = new THREE.Group();
   readonly instances = new Map<string, Instance>();
+  /** Kontaktskygger (separat, så de ikke kommer med i markeringens omrids). */
+  readonly blobs = new THREE.Group();
   private lightPool: THREE.PointLight[] = [];
   private tintCache = new Map<string, THREE.Material>();
+  /** 0 om dagen, 1 om natten (styrer skærmenes glød). */
+  private night = 0;
   onChanged?: () => void;
 
   constructor(
@@ -33,7 +45,8 @@ export class FurnitureView {
     private library: ModelLibrary,
   ) {
     this.root.name = 'furniture';
-    scene.add(this.root);
+    this.blobs.name = 'contact-shadows';
+    scene.add(this.root, this.blobs);
     for (let i = 0; i < MAX_LIGHTS; i++) {
       const l = new THREE.PointLight('#ffd9a8', 0, 6, 2);
       l.castShadow = false;
@@ -48,6 +61,7 @@ export class FurnitureView {
       const item = doc.furniture[id];
       if (!item || item.catalogId !== inst.catalogId) {
         this.root.remove(inst.root);
+        if (inst.blob) this.blobs.remove(inst.blob);
         this.instances.delete(id);
         changed = true;
       }
@@ -64,6 +78,7 @@ export class FurnitureView {
       if (r.position.x !== item.x || r.position.y !== item.y || r.position.z !== item.z || r.rotation.y !== item.rotation) {
         r.position.set(item.x, item.y, item.z);
         r.rotation.y = item.rotation;
+        this.placeBlob(inst);
         changed = true;
       }
       if (entry && inst.body) {
@@ -83,7 +98,7 @@ export class FurnitureView {
     root.position.set(item.x, item.y, item.z);
     root.rotation.y = item.rotation;
     this.root.add(root);
-    const inst: Instance = { root, body: null, catalogId: item.catalogId, appearance: '', shades: [] };
+    const inst: Instance = { root, body: null, catalogId: item.catalogId, appearance: '', shades: [], blob: null };
     if (!entry) {
       root.add(missingBox());
       return inst;
@@ -110,6 +125,24 @@ export class FurnitureView {
     inst.body = body;
     inst.root.add(body);
     this.applyAppearance(inst, item, entry);
+    const placement = entry.placement ?? 'floor';
+    if ((placement === 'floor' || placement === 'surface') && entry.dimensions.height > 3) {
+      const fp = footprint(tpl, entry);
+      inst.blob = createContactShadow(fp.w, fp.d);
+      inst.blob.userData.center = fp.center;
+      this.blobs.add(inst.blob);
+      this.placeBlob(inst);
+    }
+  }
+
+  private placeBlob(inst: Instance) {
+    const b = inst.blob;
+    if (!b) return;
+    const r = inst.root;
+    const c = b.userData.center as THREE.Vector2;
+    const cos = Math.cos(r.rotation.y), sin = Math.sin(r.rotation.y);
+    b.position.set(r.position.x + c.x * cos + c.y * sin, r.position.y + 0.003, r.position.z - c.x * sin + c.y * cos);
+    b.rotation.y = r.rotation.y;
   }
 
   private applyAppearance(inst: Instance, item: FurnitureItem, entry: CatalogEntry) {
@@ -121,7 +154,7 @@ export class FurnitureView {
   /** Standardudseende på en løs kopi af en model (fx forhåndsvisning ved placering). */
   applyPreviewAppearance(body: THREE.Object3D, entry: CatalogEntry) {
     const shades = this.paintBody(body, { lightOn: true } as FurnitureItem, entry);
-    for (const m of shades) m.emissiveIntensity = entry.light ? 2.4 : 0;
+    for (const m of shades) m.emissiveIntensity = entry.light ? glowAt(this.night) : 0;
   }
 
   private paintBody(body: THREE.Object3D, item: Partial<FurnitureItem>, entry: CatalogEntry) {
@@ -141,7 +174,10 @@ export class FurnitureView {
         o.material = this.tinted(o.userData.orig as THREE.MeshStandardMaterial, color, item.color !== undefined || !!entry.defaultColor);
       } else if (role === 'shade') {
         o.userData.orig ??= o.material;
-        const m = (o.userData.orig as THREE.MeshStandardMaterial).clone();
+        const orig = o.userData.orig as THREE.MeshStandardMaterial;
+        const m = orig.clone();
+        if (orig.userData.opal) applyOpalShader(m);
+        else m.userData.uniquePerObject = true;
         o.material = m;
         shades.push(m);
       }
@@ -175,13 +211,21 @@ export class FurnitureView {
   private setLampState(inst: Instance, item: FurnitureItem, entry: CatalogEntry) {
     const on = !!entry.light && item.lightOn !== false;
     for (const m of inst.shades) {
-      m.emissiveIntensity = on ? 2.4 : 0;
+      m.emissiveIntensity = on ? glowAt(this.night) : 0;
       m.emissive.set(entry.light?.color ?? '#ffe0b0');
     }
   }
 
   /** Fordeler lyspuljen til de tændte lamper tættest på kameraet. */
   updateLights(doc: ProjectDoc, camPos: THREE.Vector3, nightFactor: number) {
+    if (Math.abs(nightFactor - this.night) > 0.005) {
+      this.night = nightFactor;
+      for (const [id, inst] of this.instances) {
+        const item = doc.furniture[id];
+        const entry = item && this.catalog.get(item.catalogId);
+        if (item && entry && inst.shades.length) this.setLampState(inst, item, entry);
+      }
+    }
     const lamps: { item: FurnitureItem; entry: CatalogEntry; pos: THREE.Vector3; d: number }[] = [];
     for (const item of Object.values(doc.furniture)) {
       const entry = this.catalog.get(item.catalogId);
@@ -213,6 +257,7 @@ export class FurnitureView {
     for (const [id, inst] of this.instances) {
       if (inst.catalogId !== catalogId) continue;
       this.root.remove(inst.root);
+      if (inst.blob) this.blobs.remove(inst.blob);
       this.instances.delete(id);
     }
     this.sync(doc);
@@ -225,6 +270,35 @@ export class FurnitureView {
   bounds() {
     return new THREE.Box3().setFromObject(this.root);
   }
+}
+
+/**
+ * Fodaftrykket, hvor møblet rører gulvet: de dele af modellen, der er under
+ * 6 cm (fx lampefod, stoleben). Falder tilbage til manifestets mål.
+ */
+function footprint(tpl: THREE.Group, entry: CatalogEntry) {
+  const cached = tpl.userData.footprint as { w: number; d: number; center: THREE.Vector2 } | undefined;
+  if (cached) return cached;
+  const box = new THREE.Box2(new THREE.Vector2(Infinity, Infinity), new THREE.Vector2(-Infinity, -Infinity));
+  const v = new THREE.Vector3();
+  tpl.updateMatrixWorld(true);
+  tpl.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const pos = o.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+      if (v.y < 0.06) box.expandByPoint(new THREE.Vector2(v.x, v.z));
+    }
+  });
+  let fp;
+  if (box.isEmpty()) {
+    fp = { w: entry.dimensions.width / 100, d: entry.dimensions.depth / 100, center: new THREE.Vector2() };
+  } else {
+    const size = box.getSize(new THREE.Vector2());
+    fp = { w: Math.max(0.08, size.x), d: Math.max(0.08, size.y), center: box.getCenter(new THREE.Vector2()) };
+  }
+  tpl.userData.footprint = fp;
+  return fp;
 }
 
 function appearanceKey(item: FurnitureItem, entry: CatalogEntry) {

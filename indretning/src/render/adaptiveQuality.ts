@@ -1,4 +1,4 @@
-import type { Viewport } from './Viewport';
+import type { Quality, Viewport } from './Viewport';
 
 /**
  * Brugerens grafikvalg (gemmes i browseren).
@@ -8,14 +8,58 @@ import type { Viewport } from './Viewport';
  */
 export type ResolutionMode = 'auto' | 'sharp' | 'normal' | 'fast';
 
+/** Samlet kvalitetsniveau. "Mellem" er lavet til at holde 60 fps på en MacBook Pro (Retina, 2×). */
+export type QualityPreset = 'lav' | 'mellem' | 'hoej' | 'ultra';
+
+export interface PresetDef {
+  label: string;
+  ssao: boolean;
+  shadowSize: number;
+  /** Højeste pixel ratio (Lav: 1×). */
+  maxRatio: number;
+  effects: Omit<Quality, 'ssao' | 'shadowSize' | 'pixelRatio'>;
+}
+
+export const PRESETS: Record<QualityPreset, PresetDef> = {
+  lav: {
+    label: 'Lav',
+    ssao: false,
+    shadowSize: 1024,
+    maxRatio: 1,
+    effects: { ssaoSamples: 8, shadowSoftness: 1.5, bloom: false, smaa: false, probeSize: 64, transmission: false, msaa: 4 },
+  },
+  mellem: {
+    label: 'Mellem',
+    ssao: true,
+    shadowSize: 2048,
+    maxRatio: 2,
+    effects: { ssaoSamples: 8, shadowSoftness: 2.5, bloom: true, smaa: true, probeSize: 128, transmission: true, msaa: 4 },
+  },
+  hoej: {
+    label: 'Høj',
+    ssao: true,
+    shadowSize: 4096,
+    maxRatio: 2,
+    effects: { ssaoSamples: 16, shadowSoftness: 3, bloom: true, smaa: true, probeSize: 256, transmission: true, msaa: 4 },
+  },
+  ultra: {
+    label: 'Ultra',
+    ssao: true,
+    shadowSize: 4096,
+    maxRatio: 2,
+    effects: { ssaoSamples: 24, shadowSoftness: 3.5, bloom: true, smaa: true, probeSize: 256, transmission: true, msaa: 8 },
+  },
+};
+
 export interface GraphicsSettings {
+  preset: QualityPreset;
   resolution: ResolutionMode;
   ssao: boolean;
   shadowSize: number;
 }
 
 const KEY = 'indretning:grafik';
-const DEFAULTS: GraphicsSettings = { resolution: 'auto', ssao: true, shadowSize: 2048 };
+const DEFAULTS: GraphicsSettings = { preset: 'mellem', resolution: 'auto', ssao: true, shadowSize: 2048 };
 
 export function loadGraphicsSettings(): GraphicsSettings {
   try {
@@ -71,13 +115,14 @@ export class AdaptiveQuality {
     private viewport: Viewport,
     private isBlocked: () => boolean,
   ) {
-    if (this.settings.shadowSize !== 2048) this.viewport.setQuality({ shadowSize: this.settings.shadowSize });
+    if (!PRESETS[this.settings.preset]) this.settings.preset = 'mellem';
+    this.viewport.setQuality({ ...PRESETS[this.settings.preset].effects, shadowSize: this.settings.shadowSize });
     this.apply(false, true);
   }
 
   /** Fuld opløsning for den valgte tilstand. */
   fullRatio() {
-    const device = Math.min(window.devicePixelRatio || 1, 2);
+    const device = Math.min(window.devicePixelRatio || 1, PRESETS[this.settings.preset].maxRatio);
     switch (this.settings.resolution) {
       case 'normal':
         return Math.min(1, device);
@@ -111,11 +156,17 @@ export class AdaptiveQuality {
 
   /** Brugeren ændrer grafikindstillinger (gemmes). */
   update(patch: Partial<GraphicsSettings>) {
+    if (patch.preset && patch.preset !== this.settings.preset) {
+      // Et kvalitetsniveau sætter også SSAO og skygger (kan justeres bagefter)
+      const p = PRESETS[patch.preset];
+      patch = { ssao: p.ssao, shadowSize: p.shadowSize, ...patch };
+    }
     Object.assign(this.settings, patch);
     saveGraphicsSettings(this.settings);
     // Et nyt valg starter forfra i fuld kvalitet
     this.level = 0;
     this.ssaoSuppressed = false;
+    if (patch.preset) this.viewport.setQuality({ ...PRESETS[this.settings.preset].effects });
     if (patch.shadowSize) this.viewport.setQuality({ shadowSize: patch.shadowSize });
     this.pause(1500);
     this.apply(false, true);

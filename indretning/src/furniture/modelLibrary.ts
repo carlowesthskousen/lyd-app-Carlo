@@ -123,6 +123,8 @@ export class ModelLibrary {
             const ov = overrides.get(o.material.name);
             if (ov) {
               o.material = ov.material;
+              // Opalglas i en lampe = skærm, der gløder når lampen er tændt
+              if (ov.material.userData.opal) o.userData.role = 'shade';
               const hasUv = !!o.geometry.attributes.uv;
               if (ov.def.uv === 'box' || (ov.def.uv !== 'model' && !hasUv && ov.textured)) {
                 o.userData.boxUv = ov.def.textureSize ?? 0.5;

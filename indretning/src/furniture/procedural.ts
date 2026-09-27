@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { PALETTE, basic, emissiveMaterial, glassMaterial } from '../render/materials';
+import { PALETTE, basic, glassMaterial, opalMaterial } from '../render/materials';
 
 /**
  * Procedurale placeholder-møbler. Hver generator får målene i meter
@@ -57,11 +57,7 @@ function legs(g: THREE.Group, w: number, d: number, h: number, t: number, inset:
     }
 }
 
-const shade = (color = '#fff3dc') => {
-  const m = emissiveMaterial(color).clone();
-  m.name = 'shade';
-  return m;
-};
+const shade = (color = '#f6f2ea') => opalMaterial(color);
 
 const gens: Record<string, Gen> = {
   diningChair(w, d, h, m) {

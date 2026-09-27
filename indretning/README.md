@@ -268,6 +268,24 @@ De tilpasser sig automatisk til de mål, du angiver. `"procedural": "sofa"` med 
 
 ---
 
+## Grafik og lys
+
+- **Miljølys fra et rigtigt HDRI.** `scene.environment` er Poly Havens "park"-HDRI (CC0, græsplæne i dagslys), så metal, lak og glas spejler himmel, horisont og græs. Solen i HDRI'et klippes ned og drejes, så den står samme sted som spillets sol; det direkte sollys og skyggerne kommer fra spillets sollys. Metal spejler himlen lidt kraftigere end resten af scenen, så messing og krom ikke ser mat ud.
+- **Eget 2K-HDRI:** Det medfølgende HDRI er en 512 px-udgave fra npm-pakken `@pmndrs/assets`. Hent fx [Rooitou Park](https://polyhaven.com/a/rooitou_park) eller et andet udendørs HDRI i 2K `.hdr` fra Poly Haven, og gem det som `public/hdri/ude.hdr`. Så bruger spillet det automatisk.
+- **Lokale refleksioner inde i huset.** Hvert rum har en refleksionsprobe (CubeCamera), der fotograferer rummet uden møbler og med alle vægge oppe. Gulv, vægge og møbler i rummet spejler rummets egne vægge i stedet for himlen. Proben opdateres, når rummet, tidspunktet eller lamperne ændres.
+- **Skygger:** Skyggekameraet følger det, du kigger på, og dækker 14–20 m. Det giver skarpe skygger, også af tynde lampestænger. Bløde PCF-kanter og små bias-værdier gør, at skyggen sidder fast ved foden. Hvert møbel har desuden en blød kontaktskygge under sig, og SSAO (GTAO) mørkner dér, hvor ting rører gulvet.
+- **Græs og horisont:** Græsset er en PBR-tekstur (farve og normal-map), der læses i to størrelser og blandes efter en langsom støj, så der ikke opstår et gentaget mønster. En dis i horisontens farve lader græsset glide ud i himlen.
+- **Opalglas** (lampeskærme og forudindstillingen "Opal glas") er et `MeshPhysicalMaterial` med let transmission. Når lampen er tændt, gløder skærmen indefra, og en svag bloom lader lyset brede sig.
+- **Billedkvalitet:** MSAA og SMAA efter tonemapping, ACES med eksponering 0,9, så hvide flader ikke brænder ud. Pixel ratio er 2 på Retina.
+- **Kvalitet** (⚙ → Grafik): Lav, Mellem, Høj og Ultra. Mellem er standard og lavet til 60 fps på en MacBook Pro.
+
+| Niveau | Opløsning | SSAO | Skyggekort | Bloom / SMAA | Rum-refleksion | Opal-transmission |
+| ------ | --------- | ---- | ---------- | ------------ | -------------- | ----------------- |
+| Lav | 1× | fra | 1024 | fra | 64 px | fra |
+| Mellem | op til 2× | 8 prøver | 2048 | til | 128 px | til |
+| Høj | op til 2× | 16 prøver | 4096 | til | 256 px | til |
+| Ultra | op til 2× | 24 prøver, 8× MSAA | 4096 | til | 256 px | til |
+
 ## Egne teksturer til gulve og vægge
 
 Gulv- og vægmaterialerne (træ, fliser, beton, tæppe, mursten, puds) genereres procedurelt i `src/render/textures.ts`, så spillet ikke er afhængigt af eksterne filer. Vil du bruge rigtige PBR-teksturer, så læg billederne i `public/textures/` og skift den relevante `case` i `src/render/materials.ts` ud med `new THREE.TextureLoader().load('textures/eg.jpg')`. Sæt `colorSpace = SRGBColorSpace` og `repeat` til `1 / meter pr. flise`. Farvelister og materialenavne i Byg-panelet findes i `src/building/buildCatalog.ts`.
@@ -285,7 +303,8 @@ src/
   furniture/    Katalog + manifest, model-loader med autoskalering, procedurale
                 placeholders, kollision (OBB/SAT), væg-snap, lyspulje for lamper
   tools/        Vælg, Væg, Rum, Døre & vinduer, Møbelplacering, Maling, Slet
-  render/       Renderer, sol/himmel/tidspunkt, SSAO (GTAO), omrids, materialer
+  render/       Renderer, HDRI-miljølys, refleksionsprober, sol/himmel/dis, skygger,
+                græs, kontaktskygger, SSAO (GTAO), bloom, SMAA, omrids, materialer
   ui/           Top-bar, værktøjslinje, katalog, egenskabspanel, hjælp, projekter
   persistence/  localStorage, JSON-eksport/-import, starterhus
   import/       Træk-og-slip, zip/mapper, konvertering (GLTF/FBX/OBJ-loaders), import-dialog
@@ -299,7 +318,8 @@ src/
 ## Ydelse
 
 - Møbelmodeller bages og slås sammen pr. materiale, og materialer deles mellem møbler.
-- Skyggekortet gentegnes kun, når noget ændrer sig. Skyggekameraet tilpasses huset.
+- Skyggekortet gentegnes kun, når noget ændrer sig, eller når kameraet har flyttet sig et stykke (skyggekameraet følger det, du kigger på).
+- Rummenes refleksionsprober fotograferes kun, når noget ændrer sig (samlet med en lille forsinkelse).
 - Lamper bruger en fast pulje på 8 lyskilder, som tildeles de tændte lamper nærmest kameraet. Det giver ingen shader-genkompilering og stabil fps, uanset hvor mange lamper der står.
 - Hvis billedfrekvensen falder under 40 fps i flere sekunder, slås SSAO automatisk fra, og derefter sænkes opløsningen. Alt kan justeres under ⚙.
 

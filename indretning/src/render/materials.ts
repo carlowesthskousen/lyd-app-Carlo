@@ -108,7 +108,7 @@ export function finishMaterial(finish: Finish, color: string): THREE.MeshStandar
       mat = new THREE.MeshStandardMaterial({ color: c, roughness: 0.22 });
       break;
     case 'metal':
-      mat = new THREE.MeshStandardMaterial({ color: c, roughness: 0.3, metalness: 0.85 });
+      mat = new THREE.MeshStandardMaterial({ color: c, roughness: 0.3, metalness: 1 });
       break;
   }
   mat.name = key;
@@ -123,7 +123,7 @@ export const PALETTE = {
   white: '#f2f0eb',
   black: '#2a2a2a',
   steel: '#b9bcbf',
-  brass: '#c8a14a',
+  brass: '#c9a45c',
   linen: '#d9d2c5',
   green: '#6f8f5e',
   terracotta: '#b8674a',
@@ -167,4 +167,63 @@ export function emissiveMaterial(color: string): THREE.MeshStandardMaterial {
     cache.set(key, m);
   }
   return m;
+}
+
+/**
+ * Opalglas (lampeskærme): mælkehvidt glas med let transmission, så det får en
+ * blød gradient i stedet for at være kridhvidt. Når lampen er tændt, gløder det
+ * indefra (stærkest midt på, svagere mod kanterne) – og bloom får lyset til at brede sig.
+ */
+const opalMaterials = new Set<THREE.MeshPhysicalMaterial>();
+let opalTransmission = true;
+
+export function opalMaterial(color = '#f6f2ea'): THREE.MeshPhysicalMaterial {
+  const m = new THREE.MeshPhysicalMaterial({
+    color,
+    roughness: 0.55,
+    metalness: 0,
+    transmission: 0.42,
+    thickness: 0.015,
+    ior: 1.46,
+    attenuationColor: new THREE.Color('#efdcc0'),
+    attenuationDistance: 0.06,
+    specularIntensity: 0.6,
+    side: THREE.DoubleSide,
+    emissive: new THREE.Color('#ffd9a8'),
+    emissiveIntensity: 0,
+  });
+  m.name = 'shade';
+  m.userData.opal = true;
+  applyOpalShader(m);
+  return m;
+}
+
+/** Sætter glød-gradienten på (også efter clone(), som ikke tager den med). */
+export function applyOpalShader(m: THREE.Material) {
+  if (!(m instanceof THREE.MeshPhysicalMaterial)) return;
+  m.userData.opal = true;
+  m.userData.uniquePerObject = true;
+  m.transmission = opalTransmission ? 0.42 : 0;
+  m.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+  {
+    float facing = abs(dot(normalize(normal), normalize(vViewPosition)));
+    totalEmissiveRadiance *= mix(0.3, 1.25, pow(facing, 0.7));
+  }`,
+    );
+  };
+  m.customProgramCacheKey = () => 'opal-v1';
+  opalMaterials.add(m);
+}
+
+/** Slår transmission til/fra (kvalitet "Lav" slår den fra for at spare et render-pass). */
+export function setOpalTransmission(on: boolean) {
+  if (on === opalTransmission) return;
+  opalTransmission = on;
+  for (const m of opalMaterials) {
+    m.transmission = on ? 0.42 : 0;
+    m.needsUpdate = true;
+  }
 }

@@ -158,13 +158,44 @@ export class App implements Editor {
     };
     this.camera.onSpeedChange = () => this.emit('speed');
     this.building.onRebuilt = () => {
-      this.viewport.lighting.fitTo(this.sceneBounds());
       this.viewport.markShadowsDirty();
+      this.viewport.probes.setRooms(this.building.rooms, (room) =>
+        Math.min(...room.sides.map((s) => this.store.doc.walls[s.wallId]?.height ?? 2.5)),
+      );
     };
     this.furniture.onChanged = () => {
       this.viewport.markShadowsDirty();
+      this.assignReflections(false);
       this.refreshHighlights();
     };
+    // Rummenes refleksionsprober: fotografér rummet uden møbler og med alle vægge oppe
+    const probes = this.viewport.probes;
+    this.viewport.noAO.push(this.furniture.blobs);
+    probes.prepareCapture = () => {
+      const vp = this.viewport;
+      const scene = vp.scene;
+      const hide = [this.furniture.root, this.furniture.blobs, this.overlay.root, vp.grid, vp.lighting.sky].filter((o) => o.visible);
+      for (const o of hide) o.visible = false;
+      // Himlen ses gennem vinduerne som HDRI'et (med klippet sol) – ikke himmel-shaderens
+      // solskive, der ellers ville overstråle hele rummets refleksion.
+      const bg = scene.background;
+      const bgInt = scene.backgroundIntensity;
+      const bgRot = scene.backgroundRotation.clone();
+      if (scene.environment) {
+        scene.background = scene.environment;
+        scene.backgroundIntensity = scene.environmentIntensity;
+        scene.backgroundRotation.copy(scene.environmentRotation);
+      }
+      const restoreWalls = this.building.forceFullWalls();
+      return () => {
+        restoreWalls();
+        scene.background = bg;
+        scene.backgroundIntensity = bgInt;
+        scene.backgroundRotation.copy(bgRot);
+        for (const o of hide) o.visible = true;
+      };
+    };
+    probes.onUpdated = () => this.assignReflections(true);
 
     this.tools = {
       select: new SelectTool(this),
@@ -237,8 +268,9 @@ export class App implements Editor {
     }
     const alive = this.selected.filter((r) => this.exists(r));
     if (alive.length !== this.selected.length) this.setSelection(alive);
-    if (buildingChanged) this.viewport.lighting.fitTo(this.sceneBounds());
     this.viewport.lighting.setTime(doc.settings.timeOfDay);
+    // Rummene fotograferes igen (lamper tændt/slukket, nye materialer …)
+    if (reason !== 'settings' || buildingChanged) this.viewport.probes.schedule();
     this.updateGridVisibility();
     this.refreshHighlights();
     this.updateStats();
@@ -898,6 +930,23 @@ export class App implements Editor {
     this.camera.toggleMode();
   }
 
+  /**
+   * Giver flader og møbler inde i et rum rummets egen refleksion (se
+   * render/reflectionProbes.ts). Møbler udenfor bruger himlen (HDRI).
+   */
+  private assignReflections(building: boolean) {
+    const probes = this.viewport.probes;
+    if (building) this.building.forEachRoomSurface((mesh, key) => probes.applyTo(mesh, key));
+    for (const [id, inst] of this.furniture.instances) {
+      const item = this.store.doc.furniture[id];
+      if (!item || !inst.body) continue;
+      const key = probes.roomAt(item.x, item.z);
+      inst.body.traverse((o) => {
+        if (o instanceof THREE.Mesh) probes.applyTo(o, key);
+      });
+    }
+  }
+
   // ---------------------------------------------------------------- loop
 
   private hudTimer = 0;
@@ -920,6 +969,7 @@ export class App implements Editor {
       this.emit('walls');
     }
     this.furniture.updateLights(this.store.doc, this.camera.position, 1 - this.viewport.lighting.daylight);
+    this.viewport.follow(this.camera.focusPoint());
     this.tool.update?.(dt);
     this.viewport.render();
     this.hudTimer += dt;

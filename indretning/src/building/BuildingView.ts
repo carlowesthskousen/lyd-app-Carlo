@@ -274,6 +274,39 @@ export class BuildingView {
     return this.walls.get(id)?.factor ?? 1;
   }
 
+  /**
+   * Alle flader, der vender ind i et rum: rummets gulv og vægsiderne mod rummet
+   * (både fuld væg og stump). Bruges til rummets refleksionsprobe.
+   */
+  forEachRoomSurface(cb: (mesh: THREE.Mesh, roomKey: string) => void) {
+    for (const room of this.rooms) {
+      const floor = this.floorObjects.get(room.key);
+      if (floor) cb(floor, room.key);
+      for (const side of room.sides) {
+        const w = this.walls.get(side.wallId);
+        if (!w) continue;
+        for (const part of [w.full, w.stub])
+          for (const c of part.children) if (c instanceof THREE.Mesh && c.userData.pick?.side === side.side) cb(c, room.key);
+      }
+    }
+  }
+
+  /** Viser midlertidigt alle vægge i fuld højde (til refleksionsprober). Returnerer "gendan". */
+  forceFullWalls(): () => void {
+    const saved: [WallEntry, number][] = [];
+    for (const w of this.walls.values()) {
+      saved.push([w, w.factor]);
+      w.factor = 1;
+      this.applyFactor(w);
+    }
+    return () => {
+      for (const [w, f] of saved) {
+        w.factor = f;
+        this.applyFactor(w);
+      }
+    };
+  }
+
   /** Antal vægge, der er (eller er på vej til at blive) sænket. */
   get loweredCount() {
     let n = 0;

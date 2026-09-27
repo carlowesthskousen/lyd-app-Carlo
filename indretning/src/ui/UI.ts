@@ -8,6 +8,7 @@ import { PropertiesPanel } from './PropertiesPanel';
 import { CameraHud } from './CameraHud';
 import { listProjects, deleteProject } from '../persistence/projects';
 import { formatArea } from '../building/BuildingView';
+import { PRESETS, type QualityPreset } from '../render/adaptiveQuality';
 
 const TOOLS: { id: ToolId; name: string; key: string; icon: string }[] = [
   { id: 'select', name: 'Vælg & flyt', key: 'V', icon: 'select' },
@@ -242,6 +243,18 @@ export class UI {
       row('Vis gitter altid (G)', check(() => app.gridForced, () => app.toggleGrid())),
       row('Vis rum-mål (m²)', check(() => app.building.showRoomLabels, (v) => app.building.setRoomLabelsVisible(v))),
       h('h4', {}, 'Grafik'),
+      row(
+        'Kvalitet',
+        select(
+          (Object.keys(PRESETS) as QualityPreset[]).map((k) => [k, PRESETS[k].label] as [string, string]),
+          () => app.quality.settings.preset,
+          (v) => {
+            app.quality.update({ preset: v as QualityPreset });
+            app.emit('settings');
+          },
+        ),
+      ),
+      h('p.settings-note', {}, 'Mellem er lavet til 60 fps på en MacBook Pro (Retina). Høj og Ultra giver skarpere skygger, mere præcis SSAO og skarpere refleksioner.'),
       row(
         'SSAO (bløde skygger i hjørner)',
         check(() => app.quality.settings.ssao, (v) => app.quality.update({ ssao: v })),
