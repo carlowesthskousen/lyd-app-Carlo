@@ -145,6 +145,44 @@ Husk kommaet mellem linjerne (dog ikke efter den sidste). Genindlæs siden, så 
 | `placement`     |   | `floor` (standard), `surface` (kan stå på borde/kommoder), `wall` (hænger på væggen) eller `ceiling` (hænger fra loftet). |
 | `elevation`     |   | Standardhøjde over gulv i cm for `wall`/`ceiling`. |
 | `tags`          |   | Ekstra søgeord til katalogets søgefelt. |
+| `materials`     |   | Overstyr materialer i GLB-filen efter navn (farve og PBR-teksturer). Se nedenfor. |
+
+### Rigtige materialer og teksturer (`materials`)
+
+Mange producent-modeller har enkle, ensfarvede materialer og ofte ingen UV-koordinater. Med feltet `materials` kan du overstyre et materiale efter dets navn i GLB-filen og give det farve og PBR-teksturer. After Chair bruger det til sit stel af hvidpigmenteret ask:
+
+```json
+"materials": {
+  "Trae": {
+    "color": "#ffffff",
+    "map": "textures/ask-hvidpigmenteret/albedo.jpg",
+    "normalMap": "textures/ask-hvidpigmenteret/normal.png",
+    "normalScale": 0.6,
+    "roughnessMap": "textures/ask-hvidpigmenteret/roughness.jpg",
+    "roughness": 1,
+    "textureSize": 0.4
+  }
+}
+```
+
+| Felt | Forklaring |
+| ---- | ---------- |
+| `color` | Farve, der ganges på teksturen (`#ffffff` = teksturens egen farve). |
+| `map` | Farvetekstur (jpg/png/webp, sRGB). |
+| `normalMap`, `normalScale` | Normal-map i OpenGL-format (grøn = op, som hos Poly Haven og ambientCG "GL"). `normalScale` styrer dybden. |
+| `roughnessMap`, `roughness` | Roughness-map i gråtoner, der ganges med `roughness`. |
+| `metalness` | 0 for træ, stof og læder. |
+| `textureSize` | Hvor mange **meter** én teksturflade dækker (standard 0,5). |
+| `uv` | `"auto"` (standard) bruger modellens UV'er og laver selv box-projicerede UV'er, hvis modellen ikke har nogen. `"box"` laver dem altid, og `"model"` laver dem aldrig. |
+
+Stierne er relative til `public/models/`. De automatiske UV'er lægger træets årer lodret på lodrette flader (ben og stolper).
+
+**Brug en tekstur fra Poly Haven eller ambientCG (CC0):**
+1. Download fx en ask- eller lys træ-tekstur i 1K eller 2K. Hos ambientCG skal du vælge "JPG" og bruge `NormalGL`, ikke `NormalDX`.
+2. Læg filerne i `public/models/textures/<navn>/`.
+3. Peg `map`, `normalMap` og `roughnessMap` på dem, og sæt `textureSize` til teksturens rigtige størrelse i meter (står på downloadsiden).
+
+Den medfølgende ask-tekstur er genereret med `node tools/generate-ash-texture.mjs` og kan justeres i scriptet.
 
 ### Sådan virker den automatiske skalering
 
@@ -166,6 +204,8 @@ Eksemplet `public/models/eksempel/laenestol-eksempel.glb` er bevidst modelleret 
 - **"modellens proportioner afviger …"**: Bredde og dybde er formentlig byttet om, eller modellen skal drejes. Prøv `"rotationY": 90`.
 - **Farven virker ikke:** Materialenavnene i `recolorable` skal matche navnene i filen. Du kan se dem i Blender (Material-fanen) eller ved at trække filen ind i <https://gltf-viewer.donmccurdy.com/>.
 
+> Se [CREDITS.md](CREDITS.md) for kilder og licenser på de medfølgende modeller og teksturer. **After Chair** er en 3D-model fra Fritz Hansens officielle downloads og må **kun bruges privat**.
+>
 > Husk at læse producentens licensvilkår. Mange 3D-filer må bruges til egne projekter, men ikke videredistribueres.
 
 ### Indbyggede placeholders (`procedural`)

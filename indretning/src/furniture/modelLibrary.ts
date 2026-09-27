@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { type Catalog, type CatalogEntry, dimsMeters } from './catalog';
+import { type Catalog, type CatalogEntry, type MaterialOverride, dimsMeters } from './catalog';
 import { buildProcedural } from './procedural';
 
 /**
@@ -46,6 +46,43 @@ export class ModelLibrary {
     return p;
   }
 
+  /** Bygger materialer ud fra manifestets "materials"-felt (farve + PBR-teksturer). */
+  private async overrideMaterials(entry: CatalogEntry): Promise<Map<string, OverrideResult>> {
+    const out = new Map<string, OverrideResult>();
+    for (const [name, def] of Object.entries(entry.materials ?? {})) {
+      const m = new THREE.MeshStandardMaterial({
+        color: def.color ?? '#ffffff',
+        roughness: def.roughness ?? 1,
+        metalness: def.metalness ?? 0,
+      });
+      m.name = name;
+      const load = async (path: string | undefined, srgb: boolean) => {
+        if (!path) return null;
+        try {
+          return await loadTexture(this.catalog.url(path), srgb);
+        } catch {
+          const msg = `Kunne ikke indlæse teksturen ${path}`;
+          console.warn(msg);
+          this.errors.set(entry.id, msg);
+          return null;
+        }
+      };
+      const [map, normalMap, roughnessMap] = await Promise.all([
+        load(def.map, true),
+        load(def.normalMap, false),
+        load(def.roughnessMap, false),
+      ]);
+      if (map) m.map = map;
+      if (normalMap) {
+        m.normalMap = normalMap;
+        m.normalScale.setScalar(def.normalScale ?? 1);
+      }
+      if (roughnessMap) m.roughnessMap = roughnessMap;
+      out.set(name, { material: m, def, textured: !!(map || normalMap || roughnessMap) });
+    }
+    return out;
+  }
+
   private async build(entry: CatalogEntry): Promise<THREE.Group> {
     const { w, d, h } = dimsMeters(entry);
     const token = new THREE.MeshStandardMaterial({ color: entry.defaultColor ?? '#cccccc' });
@@ -54,6 +91,7 @@ export class ModelLibrary {
         const gltf = await this.loader.loadAsync(this.catalog.url(entry.file));
         const scene = gltf.scene;
         const names = Array.isArray(entry.recolorable) ? entry.recolorable : null;
+        const overrides = await this.overrideMaterials(entry);
         scene.traverse((o) => {
           if (!(o instanceof THREE.Mesh)) return;
           o.castShadow = true;
@@ -61,6 +99,16 @@ export class ModelLibrary {
           const mats = Array.isArray(o.material) ? o.material : [o.material];
           const tint = mats.some((m: THREE.Material) => (names ? names.includes(m.name) : entry.recolorable === true));
           if (tint) o.userData.role = 'tint';
+          if (!Array.isArray(o.material)) {
+            const ov = overrides.get(o.material.name);
+            if (ov) {
+              o.material = ov.material;
+              const hasUv = !!o.geometry.attributes.uv;
+              if (ov.def.uv === 'box' || (ov.def.uv !== 'model' && !hasUv && ov.textured)) {
+                o.userData.boxUv = ov.def.textureSize ?? 0.5;
+              }
+            }
+          }
         });
         return normalize(scene, entry, w, d, h, null);
       } catch (err) {
@@ -72,6 +120,29 @@ export class ModelLibrary {
     const g = buildProcedural(entry.procedural ?? 'box', w, d, h, token);
     return normalize(g, entry, w, d, h, token);
   }
+}
+
+const textureCache = new Map<string, Promise<THREE.Texture>>();
+
+function loadTexture(url: string, srgb: boolean): Promise<THREE.Texture> {
+  const key = `${url}|${srgb}`;
+  let p = textureCache.get(key);
+  if (!p) {
+    p = new THREE.TextureLoader().loadAsync(url).then((t) => {
+      t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = 8;
+      return t;
+    });
+    textureCache.set(key, p);
+  }
+  return p;
+}
+
+export interface OverrideResult {
+  material: THREE.MeshStandardMaterial;
+  def: MaterialOverride;
+  textured: boolean;
 }
 
 function normalize(
@@ -133,7 +204,9 @@ export function bakeAndMerge(root: THREE.Object3D, mainToken: THREE.Material | n
     const flip = o.matrixWorld.determinant() < 0;
     if (Array.isArray(o.material) || o instanceof THREE.SkinnedMesh || o.morphTargetInfluences) {
       const clone = o.clone();
-      clone.geometry = o.geometry.clone().applyMatrix4(o.matrixWorld);
+      const geo = o.geometry.clone();
+      for (const name of ['position', 'normal']) if (geo.getAttribute(name)) geo.setAttribute(name, toFloat(geo.getAttribute(name)));
+      clone.geometry = geo.applyMatrix4(o.matrixWorld);
       clone.position.set(0, 0, 0);
       clone.rotation.set(0, 0, 0);
       clone.scale.set(1, 1, 1);
@@ -143,10 +216,12 @@ export function bakeAndMerge(root: THREE.Object3D, mainToken: THREE.Material | n
     let g = o.geometry.clone();
     for (const name of Object.keys(g.attributes)) {
       if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
+      else g.setAttribute(name, toFloat(g.getAttribute(name)));
     }
     g.morphAttributes = {};
     if (!g.attributes.normal) g.computeVertexNormals();
-    if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+    const boxUv = o.userData.boxUv as number | undefined;
+    if (!g.attributes.uv && !boxUv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
     if (!g.index) {
       const n = g.attributes.position.count;
       const idx = new (n > 65535 ? Uint32Array : Uint16Array)(n);
@@ -162,6 +237,7 @@ export function bakeAndMerge(root: THREE.Object3D, mainToken: THREE.Material | n
         idx.setX(i + 2, a);
       }
     }
+    if (boxUv) applyBoxUv(g, boxUv);
     // Ensartet indekstype, ellers kan geometrierne ikke slås sammen.
     if (!(g.index!.array instanceof Uint32Array)) g.setIndex(new THREE.BufferAttribute(new Uint32Array(g.index!.array), 1));
     const data: Record<string, unknown> = {};
@@ -187,4 +263,54 @@ export function bakeAndMerge(root: THREE.Object3D, mainToken: THREE.Material | n
     out.add(mesh);
   }
   return out;
+}
+
+/**
+ * GLB-filer er ofte komprimerede (kvantiserede heltal). Før vi bager skala og
+ * placering ind, pakkes attributten ud til almindelige 32-bit tal – ellers
+ * ville koordinater i meter blive klippet til intervallet [-1, 1].
+ */
+function toFloat(attr: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): THREE.BufferAttribute {
+  if (!(attr instanceof THREE.InterleavedBufferAttribute) && attr.array instanceof Float32Array) return attr as THREE.BufferAttribute;
+  const n = attr.count;
+  const size = attr.itemSize;
+  const out = new Float32Array(n * size);
+  for (let i = 0; i < n; i++) {
+    out[i * size] = attr.getX(i);
+    if (size > 1) out[i * size + 1] = attr.getY(i);
+    if (size > 2) out[i * size + 2] = attr.getZ(i);
+    if (size > 3) out[i * size + 3] = attr.getW(i);
+  }
+  return new THREE.BufferAttribute(out, size);
+}
+
+/**
+ * Box-projicerede UV'er i meter (til modeller uden UV'er). Hver flade får
+ * koordinater fra den akse, dens normal peger mest langs. På lodrette flader
+ * løber teksturens V-akse (træets årer) lodret, som i ben og stolper.
+ */
+export function applyBoxUv(g: THREE.BufferGeometry, textureSize: number) {
+  const pos = g.attributes.position;
+  const nor = g.attributes.normal;
+  const uv = new Float32Array(pos.count * 2);
+  const s = 1 / textureSize;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const ax = Math.abs(nor.getX(i)), ay = Math.abs(nor.getY(i)), az = Math.abs(nor.getZ(i));
+    let u: number, v: number;
+    if (ay >= ax && ay >= az) {
+      // Vandrette flader (armlæn, top): årerne følger bredden
+      u = z;
+      v = x;
+    } else if (ax >= az) {
+      u = z;
+      v = y;
+    } else {
+      u = x;
+      v = y;
+    }
+    uv[i * 2] = u * s;
+    uv[i * 2 + 1] = v * s;
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
 }

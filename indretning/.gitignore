@@ -2,3 +2,7 @@ node_modules
 dist
 test-results
 *.log
+
+# Producent-modeller, der kun må bruges privat (repoet er offentligt).
+# Læg filerne selv i mappen – se CREDITS.md.
+public/models/fritz-hansen/*.glb

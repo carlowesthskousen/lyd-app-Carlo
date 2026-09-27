@@ -24,6 +24,30 @@ export const CATEGORIES: { id: CategoryId; name: string; icon: string }[] = [
 /** Hvor et møbel må stå. */
 export type Placement = 'floor' | 'surface' | 'wall' | 'ceiling';
 
+/**
+ * Overstyring af et navngivet materiale i en GLB-model, fx for at give træet en
+ * rigtig tekstur. Stier er relative til /models/.
+ */
+export interface MaterialOverride {
+  color?: string;
+  roughness?: number;
+  metalness?: number;
+  /** Farvetekstur (sRGB). */
+  map?: string;
+  /** Normal-map (OpenGL-konvention, grøn = op). */
+  normalMap?: string;
+  normalScale?: number;
+  /** Roughness-map (gråtoner; ganges med `roughness`). */
+  roughnessMap?: string;
+  /** Hvor mange meter én teksturflade dækker (standard 0,5). */
+  textureSize?: number;
+  /**
+   * Teksturkoordinater: "auto" (standard) bruger modellens UV'er og laver selv
+   * box-projicerede UV'er, hvis modellen ikke har nogen. "box" laver dem altid.
+   */
+  uv?: 'auto' | 'box' | 'model';
+}
+
 /** Én linje i public/models/manifest.json. Se README for forklaring af felterne. */
 export interface CatalogEntry {
   id: string;
@@ -46,6 +70,8 @@ export interface CatalogEntry {
   /** true = hovedmaterialet kan farves. Liste = navne på materialer i GLB-filen, der kan farves. */
   recolorable?: boolean | string[];
   defaultColor?: string;
+  /** Overstyr materialer i GLB-filen efter navn (farve, teksturer, roughness). */
+  materials?: Record<string, MaterialOverride>;
   finishes?: Finish[];
   defaultFinish?: Finish;
   light?: { color?: string; intensity?: number; distance?: number; height?: number };

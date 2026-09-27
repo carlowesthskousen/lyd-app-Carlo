@@ -137,7 +137,8 @@ export class FurnitureView {
         o.material = m;
       } else if (role === 'tint') {
         o.userData.orig ??= o.material;
-        o.material = this.tinted(o.userData.orig as THREE.MeshStandardMaterial, color, item.color !== undefined);
+        // Manifestets defaultColor gælder også GLB-materialer, der kan farves.
+        o.material = this.tinted(o.userData.orig as THREE.MeshStandardMaterial, color, item.color !== undefined || !!entry.defaultColor);
       } else if (role === 'shade') {
         o.userData.orig ??= o.material;
         const m = (o.userData.orig as THREE.MeshStandardMaterial).clone();
