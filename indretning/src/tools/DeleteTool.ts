@@ -53,6 +53,11 @@ export class DeleteTool implements Tool {
     if (this.dragging && this.hovered) this.deleteHovered();
   }
 
+  /** Drone-tilstand: starter man på et objekt, sletter trækket flere; ellers kigger man rundt. */
+  wantsDrag(e: ToolPointer) {
+    return !!this.ed.picker.pick(e.ndc);
+  }
+
   pointerDown(e: ToolPointer) {
     if (e.button !== 0) return;
     this.updateHover(e);

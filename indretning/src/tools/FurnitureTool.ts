@@ -9,13 +9,13 @@ import { uid } from '../state/ids';
 
 /**
  * Placér et nyt møbel fra kataloget. Møblet følger musen, snapper til gulv,
- * gitter og vægge. Klik placerer (Shift+klik placerer flere). R drejer 15°,
- * Alt+R eller Alt+scroll drejer frit.
+ * gitter og vægge. Klik placerer (Shift+klik placerer flere). T drejer 15°,
+ * Alt+T eller Alt+scroll drejer frit.
  */
 export class FurnitureTool implements Tool {
   readonly id = 'furniture' as const;
   cursor = 'grabbing';
-  hint = 'Klik for at placere · R / Shift+R drejer 15° · Alt+scroll eller Alt+R drejer frit · Alt = uden snap · Shift+klik placerer flere · Esc annullerer';
+  hint = 'Klik for at placere · T / Shift+T drejer 15° · Alt+scroll eller Alt+T drejer frit · Alt = uden snap · Shift+klik placerer flere · Esc annullerer';
   private ghost: THREE.Object3D | null = null;
   private entry: CatalogEntry | null = null;
   private rotation = 0;
@@ -142,7 +142,7 @@ export class FurnitureTool implements Tool {
   }
 
   keyDown(e: KeyboardEvent) {
-    if (e.code === 'KeyR' && !e.ctrlKey && !e.metaKey) {
+    if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey) {
       const step = e.altKey ? FINE_ROT_STEP : ROT_STEP;
       this.rotate(e.shiftKey ? -step : step);
       return true;

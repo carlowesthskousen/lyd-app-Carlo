@@ -10,11 +10,11 @@ import type { Opening } from '../state/types';
 import { uid } from '../state/ids';
 import { formatLength } from '../building/BuildingView';
 
-/** Indsæt døre og vinduer i vægge. R spejlvender døren. */
+/** Indsæt døre og vinduer i vægge. T spejlvender døren. */
 export class OpeningTool implements Tool {
   readonly id = 'opening' as const;
   cursor = 'copy';
-  hint = 'Peg på en væg og klik for at indsætte · R spejlvender døren · Alt = frit uden snap · Esc afslutter';
+  hint = 'Peg på en væg og klik for at indsætte · T spejlvender døren · Alt = frit uden snap · Esc afslutter';
   private ghost: THREE.Object3D | null = null;
   private candidate: (Omit<Opening, 'id'> & { valid: boolean }) | null = null;
   private flip = false;
@@ -119,7 +119,7 @@ export class OpeningTool implements Tool {
   }
 
   keyDown(e: KeyboardEvent) {
-    if (e.code === 'KeyR' && !e.ctrlKey && !e.metaKey) {
+    if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey) {
       this.flip = !this.flip;
       return true;
     }

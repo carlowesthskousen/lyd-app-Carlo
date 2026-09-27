@@ -16,7 +16,7 @@ type Drag =
 export class SelectTool implements Tool {
   readonly id = 'select' as const;
   cursor = 'default';
-  hint = 'Klik for at vælge · træk for at flytte · R drejer · Ctrl+D duplikerer · Delete sletter · F fokuserer';
+  hint = 'Klik for at vælge · træk for at flytte · T drejer · Ctrl+D duplikerer · Delete sletter · G fokuserer';
   private drag: Drag | null = null;
   private hovered: PickRef | null = null;
 
@@ -50,6 +50,14 @@ export class SelectTool implements Tool {
       this.ed.refreshHighlights();
     }
     this.ed.setCursor(ref && (ref.kind === 'furniture' || ref.kind === 'opening') ? 'grab' : 'default');
+  }
+
+  /** I drone-tilstand flyttes kun det objekt, der allerede er valgt – ellers kigger man rundt. */
+  wantsDrag(e: ToolPointer) {
+    const sel = this.ed.selection;
+    if (!sel || (sel.kind !== 'furniture' && sel.kind !== 'opening')) return false;
+    const hit = this.ed.picker.pick(e.ndc);
+    return !!hit && hit.kind === sel.kind && hit.id === sel.id;
   }
 
   pointerDown(e: ToolPointer) {
@@ -173,7 +181,7 @@ export class SelectTool implements Tool {
   }
 
   keyDown(e: KeyboardEvent) {
-    if (e.code === 'KeyR' && !e.ctrlKey && !e.metaKey) {
+    if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey) {
       const step = e.altKey ? FINE_ROT_STEP : ROT_STEP;
       return this.rotateSelection(e.shiftKey ? -step : step);
     }

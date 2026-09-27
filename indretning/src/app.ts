@@ -107,7 +107,7 @@ export class App implements Editor {
     this.camera.onChange = () => this.scheduleCameraSave();
     this.camera.collide = (from, delta) => this.collideWalls(from, delta);
     this.camera.onModeChange = (mode) => {
-      this.toast(mode === 'drone' ? 'Drone-tilstand – højreklik og træk for at kigge rundt' : 'Byg-tilstand');
+      this.toast(mode === 'drone' ? 'Drone-tilstand – træk med musen for at kigge rundt' : 'Byg-tilstand');
       this.emit('cameraMode');
       this.emit('settings');
     };
@@ -524,25 +524,53 @@ export class App implements Editor {
   private bindPointer() {
     const el = this.host;
     let leftDown = false;
+    /**
+     * Drone-tilstand: et venstreklik holdes tilbage, indtil vi ved, om det er et klik
+     * (→ værktøjet) eller et træk over 5 px (→ kig rundt, eller orbit med Alt).
+     */
+    let pendingClick: ToolPointer | null = null;
     el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       if ((e.target as HTMLElement).closest('.viewport-labels > *')) return;
       leftDown = true;
       el.setPointerCapture(e.pointerId);
       const p = this.pointer(e);
+      if (this.camera.mode === 'drone' && (e.altKey || !this.tool.wantsDrag?.(p))) {
+        pendingClick = p;
+        this.camera.beginDrag(e, e.altKey ? 'orbit' : 'look');
+        return;
+      }
       this.tool.pointerDown?.(p);
     });
     el.addEventListener('pointermove', (e) => {
       const p = this.pointer(e);
+      if (pendingClick) return; // kameraet håndterer trækket
       this.lastPointer = p;
       if (this.camera.isDragging && !leftDown) return;
       this.tool.pointerMove?.(p);
     });
     el.addEventListener('pointerup', (e) => {
-      if (e.button === 0) {
-        leftDown = false;
-        this.tool.pointerUp?.(this.pointer(e));
+      if (e.button !== 0) return;
+      leftDown = false;
+      if (pendingClick) {
+        const click = pendingClick;
+        pendingClick = null;
+        const dragged = this.camera.endDrag();
+        if (!dragged) {
+          // Et rent klik: giv det til værktøjet som tryk + slip.
+          this.tool.pointerDown?.(click);
+          this.tool.pointerUp?.(this.pointer(e));
+        }
+        return;
       }
+      this.tool.pointerUp?.(this.pointer(e));
+    });
+    el.addEventListener('pointercancel', () => {
+      if (pendingClick) {
+        pendingClick = null;
+        this.camera.endDrag();
+      }
+      leftDown = false;
     });
     el.addEventListener('pointerleave', () => {
       if (!leftDown) {
@@ -579,6 +607,15 @@ export class App implements Editor {
     const ctrl = e.ctrlKey || e.metaKey;
     if (ctrl) {
       const k = e.key.toLowerCase();
+      // Drone: Ctrl er boost. Ctrl+W/A/S/D med en bevægelsestast nede er flyvning,
+      // ikke genveje (Ctrl+D/S virker stadig, når dronen står stille).
+      if (this.camera.mode === 'drone' && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
+        const flying = this.camera.movementHeld(e.code) || e.repeat;
+        if (flying || e.code === 'KeyW' || e.code === 'KeyA') {
+          e.preventDefault();
+          return;
+        }
+      }
       if (k === 'z' && !e.shiftKey) this.undo();
       else if (k === 'y' || (k === 'z' && e.shiftKey)) this.redo();
       else if (k === 'd') this.duplicateSelection();
@@ -602,11 +639,11 @@ export class App implements Editor {
       KeyP: () => this.setTool('paint'),
       KeyX: () => this.setTool('delete'),
       KeyK: () => this.setMode(this.mode === 'build' ? 'buy' : 'build'),
-      KeyG: () => this.toggleGrid(),
+      KeyM: () => this.toggleGrid(),
       KeyL: () => this.cycleWallMode(),
       Tab: () => this.toggleCameraMode(),
-      KeyF: () => this.focusSelection(),
-      KeyT: () => this.topDown(),
+      KeyG: () => this.focusSelection(),
+      KeyY: () => this.topDown(),
       KeyH: () => this.emit('help'),
       Home: () => this.resetView(),
       Delete: () => this.deleteSelection(),

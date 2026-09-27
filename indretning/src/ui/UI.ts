@@ -259,10 +259,10 @@ export class UI {
     }
     el.append(h('div.tool-sep'));
     const view = [
-      { icon: 'focus', name: 'Fokusér på valgt', key: 'F', fn: () => app.focusSelection() },
-      { icon: 'top', name: 'Set oppefra', key: 'T', fn: () => app.topDown() },
+      { icon: 'focus', name: 'Fokusér på valgt', key: 'G', fn: () => app.focusSelection() },
+      { icon: 'top', name: 'Set oppefra', key: 'Y', fn: () => app.topDown() },
       { icon: 'home', name: 'Nulstil visning', key: 'Home', fn: () => app.resetView() },
-      { icon: 'grid', name: 'Gitter', key: 'G', fn: () => app.toggleGrid() },
+      { icon: 'grid', name: 'Gitter', key: 'M', fn: () => app.toggleGrid() },
     ];
     for (const v of view) {
       el.append(h('button.tool', { onclick: v.fn, html: `${icon(v.icon, 22)}<span class="tip">${v.name} <kbd>${v.key}</kbd></span>`, 'aria-label': v.name }));
@@ -291,18 +291,37 @@ export class UI {
   private buildHelp(el: HTMLElement) {
     const groups: [string, [string, string][]][] = [
       [
-        'Kamera',
+        'Drone-kamera (Tab)',
         [
-          ['Tab', 'Skift Drone / Byg'],
-          ['W A S D', 'Flyv (drone: dertil du kigger)'],
-          ['Space / E · C / Q', 'Op · ned'],
-          ['Shift · Alt', 'Boost · præcision (drone)'],
-          ['Højreklik + træk', 'Drone: kig rundt · Byg: orbit'],
+          ['W A S D', 'Flyv dertil du kigger'],
+          ['Space · Shift', 'Lodret op · ned'],
+          ['Venstre/højre + træk', 'Kig rundt (markøren låses)'],
+          ['Midterklik / Alt + træk', 'Orbit om punktet'],
+          ['Klik (under 5 px)', 'Brug aktivt værktøj'],
+          ['Ctrl · Alt', 'Boost · præcision'],
+          ['Scroll', 'Flyvehastighed'],
+        ],
+      ],
+      [
+        'Byg-kamera',
+        [
+          ['W A S D', 'Flyv vandret'],
+          ['Space · C', 'Op · ned'],
+          ['Shift', 'Boost'],
+          ['Højreklik + træk', 'Orbit om punktet'],
           ['Midterklik + træk', 'Panorér'],
-          ['Scroll', 'Drone: fart · Byg: zoom'],
+          ['Scroll', 'Zoom mod musen'],
+        ],
+      ],
+      [
+        'Begge kameraer',
+        [
+          ['Q · E', 'Drej venstre · højre'],
+          ['R · F', 'Kig op · ned'],
+          ['Tab', 'Skift Drone / Byg'],
           ['[ · ]', 'Langsommere · hurtigere'],
-          ['F', 'Fokusér på valgt'],
-          ['T', 'Set oppefra'],
+          ['G', 'Fokusér på valgt'],
+          ['Y', 'Set oppefra'],
           ['Home', 'Nulstil visning'],
         ],
       ],
@@ -325,13 +344,19 @@ export class UI {
           ['Ctrl+Z · Ctrl+Y', 'Fortryd · gentag'],
           ['Ctrl+D', 'Duplikér'],
           ['Delete', 'Slet valgt'],
-          ['R · Shift+R', 'Drej 15°'],
-          ['Alt+R · Alt+scroll', 'Drej frit'],
+          ['T · Shift+T', 'Drej møbel 15°'],
+          ['Alt+T · Alt+scroll', 'Drej møbel frit'],
+          ['T (døre)', 'Spejlvend dør'],
           ['Alt (hold)', 'Placér uden snap'],
           ['Shift (væg)', 'Lås vinkel til 45°'],
+        ],
+      ],
+      [
+        'Visning',
+        [
           ['Shift+klik (maling)', 'Mal hele rummet'],
           ['L', 'Vægge oppe / cutaway / nede'],
-          ['G', 'Vis/skjul gitter'],
+          ['M', 'Vis/skjul gitter'],
           ['Ctrl+S', 'Gem'],
           ['H', 'Denne oversigt'],
         ],
@@ -347,7 +372,7 @@ export class UI {
       for (const [k, v] of rows) col.append(h('div.help-row', {}, h('kbd', {}, k), h('span', {}, v)));
       cols.append(col);
     }
-    card.append(cols, h('p.help-foot', {}, 'Controller: venstre stick bevæger, højre stick kigger, RT/LT op/ned, RB boost, LB præcision, Y skifter tilstand. Bemærk: Ctrl+W lukker fanen i browseren – dyk hellere med C.'));
+    card.append(cols, h('p.help-foot', {}, 'Controller: venstre stick bevæger, højre stick kigger, RT/LT op/ned, RB boost, LB præcision, Y skifter tilstand. Bemærk: Ctrl+W (boost frem) lukker fanen i nogle browsere – i drone-tilstand spørger browseren først.'));
     el.append(card);
     const toggle = (open?: boolean) => el.classList.toggle('open', open);
     el.addEventListener('pointerdown', (e) => e.target === el && toggle(false));

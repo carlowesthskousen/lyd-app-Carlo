@@ -26,6 +26,11 @@ export interface Tool {
   pointerMove?(e: ToolPointer): void;
   pointerUp?(e: ToolPointer): void;
   pointerLeave?(): void;
+  /**
+   * Drone-tilstand: skal et venstreklik-træk, der starter her, gå til værktøjet
+   * (fx flyt det valgte møbel) i stedet for at dreje kameraet?
+   */
+  wantsDrag?(e: ToolPointer): boolean;
   /** Returnér true, hvis tasten blev håndteret. */
   keyDown?(e: KeyboardEvent): boolean;
   /** Returnér true, hvis højreklik blev håndteret (ellers skiftes til markering). */

@@ -584,3 +584,16 @@ input[type='color'] {
 @media (max-width: 820px) {
   .camera-hud { min-width: 0; }
 }
+
+.hud-toggle {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 2px 0 0;
+  font-size: 11px;
+  color: var(--blue);
+}
+.hud-legend { display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--line); padding-top: 6px; margin-top: 2px; }
+.hud-legend div { display: flex; justify-content: space-between; gap: 10px; }
+.hud-legend kbd { font-size: 10.5px; padding: 0 4px; }
+.hud-legend span { color: var(--muted); font-size: 11px; text-align: right; }

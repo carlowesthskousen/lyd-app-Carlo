@@ -33,35 +33,42 @@ Tryk **H** i spillet for at se alle hurtigtaster.
 
 *Drone* – fri flyvning i alle retninger, som en rigtig drone:
 
-| Input                        | Handling                                                        |
-| ---------------------------- | --------------------------------------------------------------- |
-| W / S                        | Flyv frem/tilbage **dertil du kigger** – kigger du skråt ned, dykker du |
-| A / D                        | Flyv sidelæns                                                   |
-| Space (eller E)              | Stig lodret op                                                  |
-| C (eller Ctrl / Q)           | Dyk lodret ned                                                  |
-| Højreklik holdt nede         | Kig rundt med musen (mouselook)                                 |
-| Scroll                       | Flyvehastighed (vises kort midt på skærmen)                     |
-| Shift / Alt                  | Boost (×3) / præcision (meget langsom)                          |
+| Input                                  | Handling                                                        |
+| -------------------------------------- | --------------------------------------------------------------- |
+| W / S                                  | Flyv frem/tilbage **dertil du kigger**. Kigger du skråt ned, dykker du |
+| A / D                                  | Flyv sidelæns                                                   |
+| Space / Shift                          | Flyv lodret op / ned                                            |
+| Venstre- eller højreklik + træk        | Kig rundt (drejer på stedet). Markøren skjules og låses, mens du trækker |
+| Midterklik + træk, eller Alt + venstre-træk | Orbit om punktet på gulvet/objektet, som musen pegede på   |
+| Klik (under 5 px bevægelse)            | Bruger det aktive værktøj (vælg, placér, slet …)                |
+| Træk på det **valgte** møbel           | Flytter møblet                                                  |
+| Scroll                                 | Flyvehastighed (vises kort midt på skærmen)                     |
+| Ctrl / Alt                             | Boost (×3) / præcision (meget langsom)                          |
 
-Dronen accelererer blødt og glider videre, når du slipper tasterne. Den krænger let i sving og retter sig selv op. Den kan ikke komme under gulvet, men kan flyve helt op til 1,5 km. Døre og vinduer kan flyves igennem. Væg-kollision kan slås fra, så man flyver gennem vægge.
+Dronen accelererer blødt og glider videre, når du slipper tasterne. Den krænger let i sving og retter sig selv op. Den kan ikke komme under gulvet, men kan flyve helt op til 1,5 km. Døre og vinduer kan flyves igennem. Væg-kollision kan slås fra, så man flyver gennem vægge. Man kan kigge ±89° op og ned, men ikke vende rundt på hovedet.
 
-> ⚠️ **Ctrl+W lukker fanen i browseren** (browseren tillader ikke spil at blokere det). Dyk derfor hellere med **C**. Hvis du alligevel trykker Ctrl+W i drone-tilstand, spørger browseren først, om du vil forlade siden.
+> ⚠️ **Ctrl+W (boost frem) lukker fanen i nogle browsere**, og det kan et spil ikke blokere. I drone-tilstand spørger browseren derfor først, om du vil forlade siden. Ctrl+D og Ctrl+S virker som genveje, når dronen står stille. Mens du flyver, er de boost.
 
 *Byg* – oversigtskamera som i The Sims:
 
 | Input                      | Handling                                     |
 | -------------------------- | -------------------------------------------- |
 | W A S D / piletaster       | Flyv vandret i kameraets retning             |
-| Space/E · C/Q              | Op · ned                                     |
+| Space · C                  | Op · ned                                     |
+| Shift                      | Boost                                        |
 | Højreklik + træk           | Orbit om punktet under musen                 |
 | Midterklik + træk          | Panorér (gulvet "følger musen")              |
 | Scroll                     | Zoom mod musens position                     |
 
-Begge tilstande: `[` `]` justerer farten, **F** fokuserer på det valgte, **T** viser oppefra og **Home** nulstiller. Alle byggeværktøjer virker i begge tilstande: venstreklik bruger værktøjet, og højreklik styrer kameraet.
+**I begge tilstande:**
+- **Q / E** drejer til venstre/højre, og **R / F** kigger op/ned.
+- **Tab** skifter blødt mellem Drone og Byg, og `[` `]` justerer farten.
+- **G** fokuserer på det valgte, **Y** viser oppefra, og **Home** nulstiller.
+- Venstreklik bruger værktøjet.
 
 **Controller (gamepad):** Venstre stick bevæger, højre stick kigger og RT/LT er op/ned. RB giver boost, LB præcision, og Y/△ skifter mellem Drone og Byg.
 
-**Indstillinger (⚙):** Kameratilstand, musefølsomhed, invertér Y, farten i begge tilstande, glid (fra stram til flydende), krængning og væg-kollision. Indstillingerne gemmes i browseren. HUD'et øverst til venstre viser tilstand, højde over gulv og fart.
+**Indstillinger (⚙):** Kameratilstand, musefølsomhed, invertér Y, farten i begge tilstande, glid (fra stram til flydende), krængning og væg-kollision. Indstillingerne gemmes i browseren. HUD'et øverst til venstre viser tilstand, højde over gulv, fart og en tasteoversigt, som kan skjules.
 
 **Værktøjer**
 
@@ -70,14 +77,14 @@ Begge tilstande: `[` `]` justerer farten, **F** fokuserer på det valgte, **T** 
 | V    | Vælg & flyt (træk møbler, skub døre/vinduer langs væggen)               |
 | B    | Væg: klik punkt for punkt. Shift låser vinklen til 45°, dobbeltklik/Esc afslutter |
 | N    | Rum: træk et rektangel, så bygges fire vægge                             |
-| O    | Døre & vinduer: peg på en væg og klik. R spejlvender døren              |
+| O    | Døre & vinduer: peg på en væg og klik. T spejlvender døren              |
 | P    | Maling & gulve: klik på en vægside eller et gulv. Shift+klik maler hele rummet |
 | X    | Slet: rødt omrids på objektet under musen. Klik sletter, og træk sletter flere |
 | K    | Skift mellem **Byg** og **Indret**                                      |
 | L    | Vægge oppe / cutaway / nede (som i The Sims)                            |
-| G    | Vis/skjul gitter                                                        |
+| M    | Vis/skjul gitter                                                        |
 
-**Redigering:** Ctrl+Z / Ctrl+Y (fortryd/gentag alt), Ctrl+D (duplikér), Delete (slet), R / Shift+R (drej 15°), Alt+R eller Alt+scroll (fri rotation), hold Alt (placér uden snap), Ctrl+S (gem nu).
+**Redigering:** Ctrl+Z / Ctrl+Y (fortryd/gentag alt), Ctrl+D (duplikér), Delete (slet), T / Shift+T (drej 15°), Alt+T eller Alt+scroll (fri rotation), hold Alt (placér uden snap), Ctrl+S (gem nu).
 
 ---
 

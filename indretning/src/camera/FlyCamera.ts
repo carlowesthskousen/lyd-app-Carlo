@@ -25,6 +25,14 @@ const MAX_PITCH_DRONE = THREE.MathUtils.degToRad(89);
 const FOV = { build: 50, drone: 62 };
 /** Så højt kan man flyve – højt nok til at se hele grunden oppefra. */
 const MAX_ALTITUDE = 1500;
+/** Musebevægelse (px) før et klik bliver til et træk. */
+export const DRAG_THRESHOLD = 5;
+/** Større musehop end dette på én hændelse betragtes som støj. */
+const MAX_MOUSE_STEP = 250;
+const MOVEMENT_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight', 'KeyC'];
+/** Tastatur-rotation (Q/E og R/F) i rad/s. */
+const KEY_YAW_SPEED = 1.9;
+const KEY_PITCH_SPEED = 1.25;
 
 export const DEFAULT_POSE: CameraPose = { x: 9, y: 11, z: 14, yaw: THREE.MathUtils.degToRad(32), pitch: THREE.MathUtils.degToRad(-35) };
 
@@ -56,7 +64,22 @@ export class FlyCamera {
   private pendingPitch = 0;
   private pendingMove = new THREE.Vector3();
   private orbitPivot: THREE.Vector3 | null = null;
-  private drag: { mode: 'look' | 'pan'; x: number; y: number; moved: number; planeY: number; locked: boolean } | null = null;
+  /**
+   * Igangværende musetræk. `armed` bliver sand, når musen har flyttet sig mere end
+   * DRAG_THRESHOLD px – først da drejer kameraet (og markøren låses).
+   */
+  private drag: {
+    mode: 'look' | 'orbit' | 'pan';
+    button: number;
+    x: number;
+    y: number;
+    moved: number;
+    armed: boolean;
+    planeY: number;
+    locked: boolean;
+  } | null = null;
+  private keyYawRate = 0;
+  private keyPitchRate = 0;
   private tween: { from: CameraPose & { fov: number }; to: CameraPose & { fov: number }; t: number; dur: number } | null = null;
   private yawRate = 0;
   private fovTarget: number;
@@ -159,8 +182,11 @@ export class FlyCamera {
       return;
     }
     if (e.metaKey) return;
-    // Ctrl+Z/Y/D/S er genveje; bevægelsestaster med Ctrl ignoreres.
-    if (e.ctrlKey && !['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space'].includes(e.code)) return;
+    if (e.ctrlKey) {
+      // Ctrl+D (duplikér) og Ctrl+S (gem) er genveje, når man ikke allerede flyver.
+      if ((e.code === 'KeyD' || e.code === 'KeyS') && !this.movementHeld(e.code)) return;
+      if (!MOVEMENT_KEYS.includes(e.code)) return;
+    }
     this.keys.add(e.code);
   };
 
@@ -173,19 +199,47 @@ export class FlyCamera {
     if (!this.enabled) return;
     if (e.button !== 2 && e.button !== 1) return;
     e.preventDefault();
-    this.tween = null;
     if (e.button === 2) {
-      // Byg: orbit om punktet under musen. Drone: ren mouselook.
-      const hit = this.mode === 'build' ? this.pickPoint(this.ndc(e)) : null;
-      this.orbitPivot = hit && hit.distanceTo(this.position) < 400 ? hit : null;
-      this.drag = { mode: 'look', x: e.clientX, y: e.clientY, moved: 0, planeY: 0, locked: false };
-      if (this.mode === 'drone') this.requestLock();
+      // Højreklik-træk: Byg = orbit om punktet under musen, Drone = kig rundt.
+      this.beginDrag(e, this.mode === 'build' ? 'orbit' : 'look');
     } else {
-      const hit = this.pickPoint(this.ndc(e));
-      this.drag = { mode: 'pan', x: e.clientX, y: e.clientY, moved: 0, planeY: hit ? Math.min(hit.y, this.position.y - 0.5) : 0, locked: false };
+      // Midterklik-træk: Drone = orbit (som i The Sims), Byg = panorér.
+      this.beginDrag(e, this.mode === 'drone' ? 'orbit' : 'pan');
     }
   };
 
+  /**
+   * Starter et kameratræk. Bruges også af appen til venstreklik-træk i drone-tilstand
+   * (venstre = kig rundt, Alt+venstre = orbit).
+   */
+  beginDrag(e: PointerEvent, mode: 'look' | 'orbit' | 'pan') {
+    this.tween = null;
+    let pivot: THREE.Vector3 | null = null;
+    let planeY = 0;
+    if (mode === 'orbit' || mode === 'pan') {
+      const hit = this.pickPoint(this.ndc(e));
+      if (mode === 'orbit') pivot = hit && hit.distanceTo(this.position) < 400 ? hit : null;
+      else planeY = hit ? Math.min(hit.y, this.position.y - 0.5) : 0;
+    }
+    this.orbitPivot = pivot;
+    this.drag = { mode, button: e.button, x: e.clientX, y: e.clientY, moved: 0, armed: mode === 'pan', planeY, locked: false };
+  }
+
+  /** Afslutter et træk. Returnerer true, hvis musen blev trukket (ikke bare klikket). */
+  endDrag(): boolean {
+    const d = this.drag;
+    if (!d) return false;
+    if (document.pointerLockElement === this.dom) document.exitPointerLock?.();
+    this.drag = null;
+    return d.armed;
+  }
+
+  /** Er der et kameratræk i gang, som har passeret grænsen? */
+  get dragArmed() {
+    return !!this.drag?.armed;
+  }
+
+  /** Skjul og lås markøren, så man kan dreje uendeligt. Den dukker op samme sted igen. */
   private requestLock() {
     const d = this.drag;
     try {
@@ -202,11 +256,22 @@ export class FlyCamera {
     if (!d) return;
     const dx = e.movementX ?? e.clientX - d.x;
     const dy = e.movementY ?? e.clientY - d.y;
-    d.moved += Math.abs(dx) + Math.abs(dy);
-    if (d.mode === 'look') {
+    // Nogle browsere sender et urealistisk spring lige efter pointer lock – ignorér det.
+    if (Math.abs(dx) > MAX_MOUSE_STEP || Math.abs(dy) > MAX_MOUSE_STEP) return;
+    d.moved += Math.hypot(dx, dy);
+    if (!d.armed) {
+      // Under grænsen er det et klik – kameraet står stille.
+      if (d.moved < DRAG_THRESHOLD) return;
+      d.armed = true;
+      if (d.mode === 'look' || d.mode === 'orbit') this.requestLock();
+      d.x = e.clientX;
+      d.y = e.clientY;
+      return;
+    }
+    if (d.mode === 'look' || d.mode === 'orbit') {
       const s = this.settings.sensitivity;
       const inv = this.settings.invertY ? -1 : 1;
-      const k = this.mode === 'drone' ? 0.0024 : 0.0055;
+      const k = d.mode === 'look' ? 0.0024 : 0.0055;
       this.pendingYaw -= dx * k * s;
       this.pendingPitch -= dy * k * 0.85 * s * inv;
     } else {
@@ -225,12 +290,9 @@ export class FlyCamera {
 
   private onPointerUp = (e: PointerEvent) => {
     const d = this.drag;
-    if (!d) return;
-    if ((e.button === 2 && d.mode === 'look') || (e.button === 1 && d.mode === 'pan')) {
-      if (d.mode === 'look' && d.moved < 5) this.onRightClick?.();
-      if (document.pointerLockElement === this.dom) document.exitPointerLock?.();
-      this.drag = null;
-    }
+    if (!d || e.button !== d.button || d.button === 0) return; // venstre knap afsluttes af appen
+    const dragged = this.endDrag();
+    if (d.button === 2 && !dragged) this.onRightClick?.();
   };
 
   private onWheel = (e: WheelEvent) => {
@@ -271,22 +333,34 @@ export class FlyCamera {
 
   // ------------------------------------------------------------------ opdatering
 
-  private readInput(): MotionInput & { lookX: number; lookY: number; toggle: boolean } {
+  /** Er der en bevægelsestast nede (bruges til at skelne Ctrl-boost fra Ctrl-genveje)? */
+  movementHeld(except?: string) {
+    return MOVEMENT_KEYS.some((c) => c !== except && this.keys.has(c));
+  }
+
+  private readInput(): MotionInput & { lookX: number; lookY: number; toggle: boolean; keyYaw: number; keyPitch: number } {
     const k = this.keys;
     const on = (...codes: string[]) => (codes.some((c) => k.has(c)) ? 1 : 0);
     const pad = readGamepad();
     this.gamepadConnected = pad.connected;
     const drone = this.mode === 'drone';
-    const down = on('KeyC', 'KeyQ') || (drone && this.ctrlHeld) ? 1 : 0;
+    const shift = on('ShiftLeft', 'ShiftRight');
+    const alt = on('AltLeft', 'AltRight');
+    // Drone: Space op, Shift ned, Ctrl boost, Alt præcision.
+    // Byg:   Space op, C ned, Shift boost (Shift bruges også af værktøjerne).
+    const down = on('KeyC') || (drone && shift) ? 1 : 0;
+    const boost = drone ? this.ctrlHeld : shift === 1;
     return {
       forward: THREE.MathUtils.clamp(on('KeyW', 'ArrowUp') - on('KeyS', 'ArrowDown') - pad.moveY, -1, 1),
       strafe: THREE.MathUtils.clamp(on('KeyD', 'ArrowRight') - on('KeyA', 'ArrowLeft') + pad.moveX, -1, 1),
-      vertical: THREE.MathUtils.clamp(on('Space', 'KeyE') - down + pad.up - pad.down, -1, 1),
-      boost: on('ShiftLeft', 'ShiftRight') === 1 || pad.boost,
-      precision: (drone && on('AltLeft', 'AltRight') === 1) || pad.precision,
+      vertical: THREE.MathUtils.clamp(on('Space') - down + pad.up - pad.down, -1, 1),
+      boost: boost || pad.boost,
+      precision: (drone && alt === 1) || pad.precision,
       lookX: pad.lookX,
       lookY: pad.lookY,
       toggle: pad.toggleMode,
+      keyYaw: on('KeyE') - on('KeyQ'),
+      keyPitch: on('KeyR') - on('KeyF'),
     };
   }
 
@@ -298,6 +372,13 @@ export class FlyCamera {
     const inv = this.settings.invertY ? -1 : 1;
     this.pendingYaw -= input.lookX * 2.4 * this.settings.sensitivity * dt;
     this.pendingPitch -= input.lookY * 1.8 * this.settings.sensitivity * dt * inv;
+    // Q/E drejer, R/F kigger op/ned – med blød start og stop.
+    const kr = 1 - Math.exp(-12 * dt);
+    this.keyYawRate += (-input.keyYaw * KEY_YAW_SPEED * this.settings.sensitivity - this.keyYawRate) * kr;
+    this.keyPitchRate += (input.keyPitch * KEY_PITCH_SPEED * this.settings.sensitivity - this.keyPitchRate) * kr;
+    if (Math.abs(this.keyYawRate) < 1e-4) this.keyYawRate = 0;
+    if (Math.abs(this.keyPitchRate) < 1e-4) this.keyPitchRate = 0;
+    if (this.keyYawRate || this.keyPitchRate) this.tween = null;
 
     this.updateFov(dt);
     if (this.tween) {
@@ -313,13 +394,13 @@ export class FlyCamera {
 
   private updateDrone(input: MotionInput, dt: number) {
     // Kig rundt: næsten direkte (let udglattet for at fjerne musens hak).
-    const dyaw = consume(this.pendingYaw, 30, dt);
-    const dpitch = consume(this.pendingPitch, 30, dt);
+    const dyaw = consume(this.pendingYaw, 38, dt);
+    const dpitch = consume(this.pendingPitch, 38, dt);
     this.pendingYaw -= dyaw;
     this.pendingPitch -= dpitch;
-    this.yaw += dyaw;
-    this.pitch = THREE.MathUtils.clamp(this.pitch + dpitch, MIN_PITCH, MAX_PITCH_DRONE);
-    this.yawRate = THREE.MathUtils.lerp(this.yawRate, dyaw / Math.max(dt, 1e-4), 1 - Math.exp(-10 * dt));
+    const totalYaw = dyaw + this.keyYawRate * dt;
+    this.rotate(totalYaw, dpitch + this.keyPitchRate * dt, MAX_PITCH_DRONE, MIN_HEIGHT_DRONE);
+    this.yawRate = THREE.MathUtils.lerp(this.yawRate, totalYaw / Math.max(dt, 1e-4), 1 - Math.exp(-10 * dt));
 
     const wish = droneWish(input, this.yaw, this.pitch, this.settings.droneSpeed);
     const step = stepVelocity(this.velocity, wish, this.settings.glide, dt);
@@ -347,28 +428,36 @@ export class FlyCamera {
     this.position.addScaledVector(this.velocity, dt);
 
     // Orbit om punktet under musen (eller drej på stedet).
-    let dyaw = consume(this.pendingYaw, 16, dt);
-    let dpitch = consume(this.pendingPitch, 16, dt);
+    const dyaw = consume(this.pendingYaw, 16, dt);
+    const dpitch = consume(this.pendingPitch, 16, dt);
     this.pendingYaw -= dyaw;
     this.pendingPitch -= dpitch;
-    const newPitch = THREE.MathUtils.clamp(this.pitch + dpitch, MIN_PITCH, MAX_PITCH_BUILD);
-    dpitch = newPitch - this.pitch;
-    if (this.orbitPivot && (Math.abs(dyaw) > 1e-7 || Math.abs(dpitch) > 1e-7)) {
-      const offset = this.position.clone().sub(this.orbitPivot);
-      offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), dyaw);
-      const rightAxis = rightVector(this.yaw + dyaw);
-      const pitched = offset.clone().applyAxisAngle(rightAxis, dpitch);
-      if (this.orbitPivot.y + pitched.y < MIN_HEIGHT_BUILD) dpitch = 0;
-      else offset.copy(pitched);
-      this.position.copy(this.orbitPivot).add(offset);
-    }
-    if (!this.drag && Math.abs(this.pendingYaw) + Math.abs(this.pendingPitch) < 1e-5) this.orbitPivot = null;
-    this.yaw += dyaw;
-    this.pitch = THREE.MathUtils.clamp(this.pitch + dpitch, MIN_PITCH, MAX_PITCH_BUILD);
+    this.rotate(dyaw + this.keyYawRate * dt, dpitch + this.keyPitchRate * dt, MAX_PITCH_BUILD, MIN_HEIGHT_BUILD);
     this.roll += (0 - this.roll) * (1 - Math.exp(-8 * dt));
 
     this.applyPendingMove(dt, MIN_HEIGHT_BUILD);
     this.clampHeight(MIN_HEIGHT_BUILD);
+  }
+
+  /**
+   * Drejer kameraet. Med et orbit-punkt kredser kameraet om punktet (som i The Sims);
+   * ellers drejer det på stedet (mouselook). Pitch holdes inden for ±89°.
+   */
+  private rotate(dyaw: number, dpitch: number, maxPitch: number, minHeight: number) {
+    const newPitch = THREE.MathUtils.clamp(this.pitch + dpitch, MIN_PITCH, maxPitch);
+    dpitch = newPitch - this.pitch;
+    const pivot = this.orbitPivot;
+    if (pivot && (Math.abs(dyaw) > 1e-7 || Math.abs(dpitch) > 1e-7)) {
+      const offset = this.position.clone().sub(pivot);
+      offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), dyaw);
+      const pitched = offset.clone().applyAxisAngle(rightVector(this.yaw + dyaw), dpitch);
+      if (pivot.y + pitched.y < minHeight) dpitch = 0;
+      else offset.copy(pitched);
+      this.position.copy(pivot).add(offset);
+    }
+    if (!this.drag && Math.abs(this.pendingYaw) + Math.abs(this.pendingPitch) < 1e-5) this.orbitPivot = null;
+    this.yaw += dyaw;
+    this.pitch = THREE.MathUtils.clamp(this.pitch + dpitch, MIN_PITCH, maxPitch);
   }
 
   private applyPendingMove(dt: number, minHeight: number) {

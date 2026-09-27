@@ -15,6 +15,8 @@ export class CameraHud {
     const spd = h('span.hud-val');
     const max = h('span.hud-val');
     const flags = h('span.hud-flags');
+    const legend = h('div.hud-legend');
+    const legendToggle = h('button.hud-toggle', { type: 'button' }, '');
     const hud = h(
       'div.camera-hud',
       {},
@@ -23,7 +25,50 @@ export class CameraHud {
       h('div.hud-row', {}, h('span.hud-key', {}, 'Fart'), spd),
       h('div.hud-row.drone-only', {}, h('span.hud-key', {}, 'Maks'), max),
       flags,
+      legendToggle,
+      legend,
     );
+    const LEGEND: Record<'drone' | 'build', [string, string][]> = {
+      drone: [
+        ['W A S D', 'flyv dertil du kigger'],
+        ['Space · Shift', 'op · ned'],
+        ['Træk (venstre/højre)', 'kig rundt'],
+        ['Midt- / Alt+træk', 'orbit om punkt'],
+        ['Q E · R F', 'drej · kig op/ned'],
+        ['Ctrl · Alt', 'boost · præcision'],
+        ['Scroll', 'flyvehastighed'],
+        ['Klik', 'brug værktøj'],
+      ],
+      build: [
+        ['W A S D', 'flyv vandret'],
+        ['Space · C', 'op · ned'],
+        ['Højreklik-træk', 'orbit om punkt'],
+        ['Midterklik-træk', 'panorér'],
+        ['Q E · R F', 'drej · kig op/ned'],
+        ['Shift', 'boost'],
+        ['Scroll', 'zoom mod musen'],
+      ],
+    };
+    let showLegend = true;
+    try {
+      showLegend = localStorage.getItem('indretning:hud-legend') !== '0';
+    } catch {
+      /* ignorer */
+    }
+    const renderLegend = () => {
+      legend.innerHTML = LEGEND[app.camera.mode].map(([k, v]) => `<div><kbd>${k}</kbd><span>${v}</span></div>`).join('');
+      legend.hidden = !showLegend;
+      legendToggle.textContent = showLegend ? 'Skjul taster' : 'Vis taster';
+    };
+    legendToggle.addEventListener('click', () => {
+      showLegend = !showLegend;
+      try {
+        localStorage.setItem('indretning:hud-legend', showLegend ? '1' : '0');
+      } catch {
+        /* ignorer */
+      }
+      renderLegend();
+    });
     const flash = h('div.speed-flash', { 'aria-live': 'polite' });
     host.append(hud, flash);
 
@@ -32,6 +77,7 @@ export class CameraHud {
       bDrone.classList.toggle('active', drone);
       bBuild.classList.toggle('active', !drone);
       hud.classList.toggle('is-drone', drone);
+      renderLegend();
     };
     const sync = () => {
       const c = app.camera;
