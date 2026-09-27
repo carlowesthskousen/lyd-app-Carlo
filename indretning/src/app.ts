@@ -670,6 +670,19 @@ export class App implements Editor {
 
   // ---------------------------------------------------------------- input
 
+  /** Klik-tæller til dobbeltklik (pointer-events har altid detail = 0 i Chrome). */
+  private lastDown = { t: 0, x: 0, y: 0, count: 0 };
+
+  private countClick(e: PointerEvent) {
+    const now = performance.now();
+    const l = this.lastDown;
+    const near = Math.hypot(e.clientX - l.x, e.clientY - l.y) < 6;
+    l.count = near && now - l.t < 400 ? l.count + 1 : 1;
+    l.t = now;
+    l.x = e.clientX;
+    l.y = e.clientY;
+  }
+
   private pointer(e: PointerEvent | MouseEvent): ToolPointer {
     const r = this.host.getBoundingClientRect();
     return {
@@ -680,7 +693,7 @@ export class App implements Editor {
       shift: e.shiftKey,
       alt: e.altKey,
       ctrl: e.ctrlKey || e.metaKey,
-      detail: e.detail,
+      detail: e.type === 'pointerdown' || e.type === 'pointerup' ? this.lastDown.count : e.detail,
     };
   }
 
@@ -699,6 +712,7 @@ export class App implements Editor {
       if ((e.target as HTMLElement).closest('.viewport-labels > *')) return;
       leftDown = true;
       el.setPointerCapture(e.pointerId);
+      this.countClick(e);
       const p = this.pointer(e);
       if (this.camera.mode === 'drone' && (e.altKey || !this.tool.wantsDrag?.(p))) {
         pendingClick = p;
