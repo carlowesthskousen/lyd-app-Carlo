@@ -151,7 +151,7 @@ export class SelectTool implements Tool {
       return;
     }
     // Dobbeltklik på en gruppe: markér kun dette ene objekt
-    if (pr.detail >= 2 && groupFor(doc, hit)) {
+    if (pr.detail === 2 && groupFor(doc, hit)) {
       ed.setSelection([hit]);
       return;
     }
